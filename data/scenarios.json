@@ -1,0 +1,12 @@
+{
+  "demo": {
+    "query": "socks",
+    "maxPrice": 15,
+    "limit": 2
+  },
+  "shoes": {
+    "query": "shoes",
+    "maxPrice": 220,
+    "limit": 5
+  }
+}

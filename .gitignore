@@ -1,0 +1,10 @@
+node_modules/
+test-results/
+playwright-report/
+reports/allure-report/
+.chrome-profile/
+artifacts/cdp.json
+artifacts/chrome.pid
+.env
+*.log
+dist/

@@ -1,0 +1,18 @@
+{
+  "name": "ebay-e2e-homework",
+  "version": "1.0.0",
+  "private": true,
+  "description": "eBay search, cart and budget check with Playwright",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "report:html": "playwright show-report reports/html",
+    "report:allure": "allure generate reports/allure-results --clean -o reports/allure-report && allure open reports/allure-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.1",
+    "@types/node": "^24.10.0",
+    "allure-playwright": "^3.4.1",
+    "typescript": "^5.9.3"
+  }
+}

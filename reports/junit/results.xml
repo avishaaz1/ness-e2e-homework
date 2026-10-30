@@ -1,0 +1,26 @@
+<testsuites id="" name="" tests="1" failures="0" skipped="0" errors="0" time="161.52921600000002">
+<testsuite name="cart-budget.spec.ts" timestamp="2026-10-30T22:35:49.295Z" hostname="chrome" tests="1" failures="0" skipped="0" time="152.348" errors="0">
+<testcase name="find items under a price, add them to the cart, and check the total" classname="cart-budget.spec.ts" time="152.348">
+<system-out>
+<![CDATA[[ebay] profile demo: socks, max 15, limit 2
+[ebay] no EBAY_USERNAME / EBAY_PASSWORD, continuing as guest
+[ebay] price filter submitted, max 15
+[ebay] page 1: 60 cards, collected 0/2
+[ebay] keep 10.9 https://www.ebay.com/itm/800834129181
+[ebay] keep 12.49 https://www.ebay.com/itm/168426371568
+[ebay] added https://www.ebay.com/itm/800834129181
+[ebay] added https://www.ebay.com/itm/168426371568
+[ebay] added 2 of 2
+[ebay] subtotal line (includes shipping): ILS 523.73
+[ebay] Item ILS 23.39 (23.39) , budget 30 (15 x 2)
+
+[[ATTACHMENT|..\..\test-results\cart-budget-find-items-und-5f773-he-cart-and-check-the-total-chrome\attachments\item-1-7f63c25f352bb7c0a691deb3857554db51a12142.png]]
+
+[[ATTACHMENT|..\..\test-results\cart-budget-find-items-und-5f773-he-cart-and-check-the-total-chrome\attachments\item-2-2939ccd166b7f5b1f0552e8c942ca93270e146be.png]]
+
+[[ATTACHMENT|..\..\test-results\cart-budget-find-items-und-5f773-he-cart-and-check-the-total-chrome\attachments\cart-0f39d214b7767d134ba34a54cb6a42b1d6b5e753.png]]
+]]>
+</system-out>
+</testcase>
+</testsuite>
+</testsuites>
