@@ -1,6 +1,7 @@
 import { type Locator, type Page } from '@playwright/test';
 import { site } from '../config/site_common';
 import { log } from '../utils/logger_common';
+import { waitVisible } from '../utils/wait_common';
 
 export class SignInPage {
   private readonly usernameBox: Locator;
@@ -20,8 +21,9 @@ export class SignInPage {
   async signIn(username: string, password: string): Promise<void> {
     await this.page.goto(site.SIGN_IN, { waitUntil: 'domcontentloaded' });
 
-    await this.usernameBox.waitFor({ state: 'visible', timeout: 15_000 });
+    await waitVisible(this.usernameBox);
     await this.usernameBox.fill(username);
+    await waitVisible(this.continueButton);
     await this.continueButton.click();
 
     const which = await Promise.race([
@@ -36,7 +38,9 @@ export class SignInPage {
       throw new Error('Sign-in did not reach the password step.');
     }
 
+    await waitVisible(this.passwordBox);
     await this.passwordBox.fill(password);
+    await waitVisible(this.submitButton);
     await this.submitButton.click();
     await this.page.waitForLoadState('domcontentloaded');
 

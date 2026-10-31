@@ -1,6 +1,7 @@
 import { type Locator, type Page } from '@playwright/test';
 import { site } from '../config/site_common';
 import { log } from '../utils/logger_common';
+import { appears, waitVisible } from '../utils/wait_common';
 
 const PLACEHOLDER_ITEM = '/itm/123456';
 
@@ -30,14 +31,14 @@ export class SearchResultsPage {
   }
 
   async applyMaxPrice(maxPrice: number): Promise<void> {
-    const visible = await this.maxPriceBox.isVisible({ timeout: 8_000 }).catch(() => false);
-
-    if (!visible) {
+    if (!(await appears(this.maxPriceBox))) {
       log.info('price boxes are not on the page, setting _udhi on the url');
       await this.applyPriceOnUrl(maxPrice);
+      await waitVisible(this.cards().first());
       return;
     }
 
+    await waitVisible(this.maxPriceBox);
     await this.maxPriceBox.scrollIntoViewIfNeeded();
     await this.maxPriceBox.click();
     await this.maxPriceBox.fill('');
@@ -45,6 +46,7 @@ export class SearchResultsPage {
     await this.maxPriceBox.pressSequentially(String(maxPrice), { delay: 40 });
 
     if (await this.submitPrice.isEnabled()) {
+      await waitVisible(this.submitPrice);
       await this.submitPrice.click();
       await this.page.waitForLoadState('domcontentloaded');
       log.info(`price filter submitted, max ${maxPrice}`);
@@ -53,7 +55,7 @@ export class SearchResultsPage {
       await this.applyPriceOnUrl(maxPrice);
     }
 
-    await this.cards().first().waitFor({ state: 'visible', timeout: 20_000 }).catch(() => undefined);
+    await waitVisible(this.cards().first());
   }
 
   private async applyPriceOnUrl(maxPrice: number): Promise<void> {
@@ -81,13 +83,13 @@ export class SearchResultsPage {
   }
 
   async goToNextPage(): Promise<boolean> {
-    if ((await this.nextPage.count()) === 0) return false;
-    if (!(await this.nextPage.first().isVisible().catch(() => false))) return false;
+    if (!(await appears(this.nextPage.first(), 5_000))) return false;
 
     const before = await this.itemUrl(this.cards().first());
+    await waitVisible(this.nextPage.first());
     await this.nextPage.first().click();
     await this.page.waitForLoadState('domcontentloaded');
-    await this.cards().first().waitFor({ state: 'visible', timeout: 20_000 }).catch(() => undefined);
+    await waitVisible(this.cards().first());
 
     const after = await this.itemUrl(this.cards().first()).catch(() => null);
     return Boolean(after && after !== before);

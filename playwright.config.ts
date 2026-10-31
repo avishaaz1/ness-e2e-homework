@@ -19,6 +19,7 @@ export default defineConfig({
   reporter: [
     ['list'],
     ['html', { outputFolder: 'reports/html', open: 'never' }],
+    ['allure-playwright', { resultsDir: 'reports/allure-results' }],
   ],
   use: {
     baseURL: site.HOME,

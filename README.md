@@ -82,6 +82,8 @@ npm test
 
 Chrome opens an Incognito window and you can watch the run. Before the test itself, the project opens ebay.com, closes the shipping popup if it is there, and continues as a guest.
 
+When the test finishes, pass or fail, Allure opens in the browser. The terminal prints a line like `Allure is running on http://127.0.0.1:54321`. That page shows whether the test passed or failed. Leave the terminal open while you read the report. Press Ctrl+C when you are done.
+
 The default search is in `src/utils/scenario_common.ts`:
 
 - search: `shoes`
@@ -122,10 +124,17 @@ npm test
 
 These folders are created on your machine when the test runs. They are not in git.
 
-- `reports/html` — the HTML report
+- `reports/allure-report` — the Allure report, with pass or fail on the first screen
+- `reports/html` — the Playwright HTML report
 - `artifacts/screenshots` — one screenshot per added item, plus the cart
 
-Open the report:
+`npm test` opens Allure and prints its link. To open the last Allure report again:
+
+```bash
+npm run report:allure
+```
+
+Playwright's own report:
 
 ```bash
 npm run report:html

@@ -1,5 +1,7 @@
 import { type Locator, type Page } from '@playwright/test';
+import { ELEMENT_TIMEOUT } from '../config/browser_common';
 import { log } from '../utils/logger_common';
+import { appears, waitVisible } from '../utils/wait_common';
 
 const QUANTITY = '1';
 const CART_URL = /cart\.(ebay|payments\.ebay)\.com/;
@@ -23,20 +25,28 @@ export class ItemPage {
 
   async open(url: string): Promise<void> {
     await this.page.goto(url, { waitUntil: 'domcontentloaded' });
+    await Promise.race([
+      this.variants.first().waitFor({ state: 'visible', timeout: ELEMENT_TIMEOUT }),
+      this.addToCartButton.waitFor({ state: 'visible', timeout: ELEMENT_TIMEOUT }),
+    ]).catch(() => undefined);
   }
 
   // size / color live under data-testid="x-msku-evo". The ids next to them change every load.
   async chooseRandomVariants(): Promise<void> {
-    if ((await this.variants.count()) === 0) return;
+    if (!(await appears(this.variants.first(), 5_000))) return;
 
     const total = await this.variantButtons.count();
 
     for (let index = 0; index < total; index++) {
       const button = this.variantButtons.nth(index);
-      if (!(await button.isVisible().catch(() => false))) continue;
+      if (!(await appears(button, 5_000))) continue;
 
+      await waitVisible(button);
       await button.click();
-      await this.options.first().waitFor({ state: 'visible', timeout: 5_000 }).catch(() => undefined);
+      if (!(await appears(this.options.first(), 5_000))) {
+        await this.page.keyboard.press('Escape');
+        continue;
+      }
 
       const labels = (await this.options.allInnerTexts()).map((text) => text.replace(/\s+/g, ' ').trim());
       const usable = labels
@@ -51,20 +61,24 @@ export class ItemPage {
 
       const pick = usable[Math.floor(Math.random() * usable.length)];
       log.info(`variant: ${pick.label}`);
-      await this.options.nth(pick.optionIndex).click();
+      const option = this.options.nth(pick.optionIndex);
+      await waitVisible(option);
+      await option.click();
       await this.page.waitForLoadState('domcontentloaded');
     }
 
     // quantity stays 1. a random quantity would break the per-item budget.
-    if (await this.quantity.isVisible().catch(() => false)) {
+    if (await appears(this.quantity, 3_000)) {
       const disabled = await this.quantity.isDisabled().catch(() => true);
-      if (!disabled) await this.quantity.fill(QUANTITY);
+      if (!disabled) {
+        await waitVisible(this.quantity);
+        await this.quantity.fill(QUANTITY);
+      }
     }
   }
 
   async addToCart(): Promise<boolean> {
-    const ready = (await this.addToCartButton.count()) > 0 && (await this.addToCartButton.isVisible().catch(() => false));
-    if (!ready) {
+    if (!(await appears(this.addToCartButton))) {
       log.info('no Add to cart on this item, skipping');
       return false;
     }

@@ -4,13 +4,16 @@
   "private": true,
   "description": "eBay search, cart and budget check with Playwright",
   "scripts": {
-    "test": "playwright test",
-    "test:headed": "playwright test --headed",
+    "test": "node scripts/run_with_report_common.mjs",
+    "test:headed": "node scripts/run_with_report_common.mjs --headed",
+    "report:allure": "allure open reports/allure-report --host 127.0.0.1",
     "report:html": "playwright show-report reports/html"
   },
   "devDependencies": {
     "@playwright/test": "^1.56.1",
     "@types/node": "^24.10.0",
+    "allure": "^3.22.1",
+    "allure-playwright": "^3.11.1",
     "typescript": "^5.9.3"
   }
 }

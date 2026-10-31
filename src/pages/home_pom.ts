@@ -1,6 +1,8 @@
-import { expect, type Locator, type Page } from '@playwright/test';
+import { type Locator, type Page } from '@playwright/test';
 import { VIEWPORT_HEIGHT, VIEWPORT_WIDTH } from '../config/browser_common';
 import { site } from '../config/site_common';
+import { log } from '../utils/logger_common';
+import { appears, waitVisible } from '../utils/wait_common';
 
 export class HomePage {
   private readonly searchBox: Locator;
@@ -19,21 +21,12 @@ export class HomePage {
 
   async open(): Promise<void> {
     await this.page.setViewportSize({ width: VIEWPORT_WIDTH, height: VIEWPORT_HEIGHT }).catch(() => undefined);
-
-    for (let attempt = 1; attempt <= 3; attempt++) {
-      await this.page.goto(site.HOME, { waitUntil: 'domcontentloaded' });
-      await this.dismissPopups();
-      if (!(await this.blocked())) break;
-      // eBay sometimes shows a short challenge on a fresh profile, then lets the next load through
-      await this.page.waitForTimeout(4_000);
-    }
-
-    if (await this.blocked()) {
-      throw new Error('eBay blocked this browser (error page or interruption). Close other Chrome windows started by the test and run again.');
-    }
-
-    await expect(this.searchBox).toBeVisible();
+    await this.page.goto(site.HOME, { waitUntil: 'domcontentloaded' });
+    await this.dismissPopups();
     await this.closeCountryPopup();
+    // A fresh load sometimes lands on eBay's error page. Refresh before the test uses the page.
+    log.info('refreshing the homepage');
+    await this.reloadUntilReady();
   }
 
   async closeCountryPopup(): Promise<void> {
@@ -45,12 +38,52 @@ export class HomePage {
   private async blocked(): Promise<boolean> {
     const title = await this.page.title();
     const url = this.page.url();
-    return title.includes('Error Page') || title.includes('Pardon Our Interruption') || url.includes('/splashui/');
+    if (title.includes('Error Page') || title.includes('Pardon Our Interruption') || url.includes('/splashui/')) {
+      return true;
+    }
+    const body = await this.page.locator('body').innerText().catch(() => '');
+    return /something went wrong|pardon our interruption/i.test(body);
+  }
+
+  private async homeReady(): Promise<boolean> {
+    if (await this.blocked()) return false;
+    return appears(this.searchBox);
+  }
+
+  // Reloads until the search box is on screen. eBay's error page has no #gh-ac.
+  private async reloadUntilReady(): Promise<void> {
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      await this.page.reload({ waitUntil: 'domcontentloaded' });
+      await this.dismissPopups();
+      await this.closeCountryPopup();
+      if (await this.homeReady()) return;
+      log.info(`homepage not ready, refreshing again (${attempt})`);
+    }
+
+    throw new Error('eBay showed an error page. The homepage was refreshed and the search box still did not appear.');
   }
 
   async search(query: string): Promise<void> {
+    if (!(await this.homeReady())) {
+      log.info('search box missing, refreshing the homepage');
+      await this.reloadUntilReady();
+    }
+
+    try {
+      await this.submitSearch(query);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      log.info(`search did not start (${message}), refreshing the homepage`);
+      await this.reloadUntilReady();
+      await this.submitSearch(query);
+    }
+  }
+
+  private async submitSearch(query: string): Promise<void> {
+    await waitVisible(this.searchBox);
     await this.searchBox.click();
     await this.searchBox.fill(query);
+    await waitVisible(this.searchButton);
     await this.searchButton.click();
     await this.page.waitForURL(/\/sch\//, { timeout: 30_000 });
     await this.dismissPopups();
