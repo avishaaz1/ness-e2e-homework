@@ -21,7 +21,7 @@ export class EbayShop {
     this.results = new SearchResultsPage(page);
   }
 
-  // Guest when credentials are missing. A new Incognito window each run, so the cart starts empty.
+  // Guest when credentials are missing. Playwright opens a fresh window, so the cart starts empty.
   async signIn(): Promise<void> {
     await test.step('sign in or continue as guest', async () => {
       const username = process.env.EBAY_USERNAME?.trim();

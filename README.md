@@ -80,7 +80,7 @@ npm install
 npm test
 ```
 
-Chrome opens an Incognito window and you can watch the run. Before the test itself, the project opens ebay.com, closes the shipping popup if it is there, and continues as a guest.
+Playwright opens Chrome and you can watch the run. Each run starts in a fresh window, so the cart and history are empty. Before the test itself, the project opens ebay.com, closes the shipping popup if it is there, and continues as a guest.
 
 When the test finishes, pass or fail, Allure opens in the browser. The terminal prints a line like `Allure is running on http://127.0.0.1:54321`. That page shows whether the test passed or failed. Leave the terminal open while you read the report. Press Ctrl+C when you are done.
 
@@ -157,7 +157,6 @@ src/utils/scenario_common.ts  search, max price, item limit
 src/utils/price_common.ts     price parsing
 src/utils/env_common.ts       reads .env
 src/utils/logger_common.ts    console log
-src/browser/chrome_common.ts  starts and stops Chrome
 tests/cart-budget.spec.ts     the test
 tests/fixtures_common.ts      builds the shop before the test
 ```
@@ -174,7 +173,7 @@ Search reads result cards with xpath (`li.s-card` and an `/itm/` link). Locators
 ## Assumptions
 
 - Prices are compared in the currency eBay shows. With an Israel ship-to address that is ILS, so `maxPrice` is compared to that number.
-- Each run opens a new Incognito window, so the cart and history start empty.
+- Each run starts in a fresh browser window, so the cart and history start empty.
 - Quantity stays 1. Size and color are picked at random from the options that are in stock.
 - A price range such as `ILS 12.42 to ILS 31.10` uses the higher number.
 - The cart check reads the Item line (`data-test-id="ITEM_TOTAL"`). eBay's Subtotal includes shipping, and the search filter does not. The Subtotal is only written to the log.

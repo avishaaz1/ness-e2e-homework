@@ -8,7 +8,6 @@ test('find items under a price, add them to the cart, and check the total', asyn
   const urls = await shop.searchItemsByNameUnderPrice(scenario.query, scenario.maxPrice, scenario.limit);
   console.log(urls);
   console.log(urls.length);
-  console.log(urls.join('\n'));
   console.log('--------------------------------');
   // the search function may return [] (that is allowed). this scenario should still find something.
   expect(urls.length, 'no items matched the price filter').toBeGreaterThan(0);

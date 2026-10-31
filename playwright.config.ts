@@ -9,8 +9,6 @@ const headed = process.env.HEADLESS !== '1';
 
 export default defineConfig({
   testDir: './tests',
-  globalSetup: './global_setup_common.ts',
-  globalTeardown: './global_teardown_common.ts',
   timeout: 5 * 60 * 1000,
   expect: { timeout: 15_000 },
   fullyParallel: false,
@@ -35,7 +33,7 @@ export default defineConfig({
   projects: [
     {
       name: 'chrome',
-      use: { ...devices['Desktop Chrome'] },
+      use: { ...devices['Desktop Chrome'], channel: 'chrome' },
     },
   ],
 });
