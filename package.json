@@ -1,8 +1,8 @@
 {
-  "name": "ebay-e2e-homework",
+  "name": "ness-e2e-homework",
   "version": "1.0.0",
   "private": true,
-  "description": "eBay search, cart and budget check with Playwright",
+  "description": "AliExpress search, cart and budget check with Playwright",
   "scripts": {
     "test": "node scripts/run_with_report_common.mjs",
     "test:headed": "node scripts/run_with_report_common.mjs --headed",

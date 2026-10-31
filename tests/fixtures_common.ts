@@ -1,12 +1,12 @@
 import { test as base } from '@playwright/test';
-import { EbayShop } from '../src/flows/ebay_shop_common';
+import { AliShop } from '../src/flows/aliexpress_shop_common';
 
-// Playwright opens the browser. This only builds the shop and opens eBay
+// Playwright opens the browser. This builds the shop and opens AliExpress
 // before the test body runs.
-export const test = base.extend<{ shop: EbayShop }>({
+export const test = base.extend<{ shop: AliShop }>({
   shop: async ({ page }, use) => {
-    const shop = new EbayShop(page);
-    await shop.signIn();
+    const shop = new AliShop(page);
+    await shop.open();
     await use(shop);
   },
 });

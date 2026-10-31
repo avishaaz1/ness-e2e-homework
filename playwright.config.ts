@@ -1,9 +1,6 @@
-import { defineConfig, devices } from '@playwright/test';
+import { defineConfig } from '@playwright/test';
 import { LOCALE, VIEWPORT_HEIGHT, VIEWPORT_WIDTH } from './src/config/browser_common';
 import { site } from './src/config/site_common';
-import { loadDotEnv } from './src/utils/env_common';
-
-loadDotEnv();
 
 const headed = process.env.HEADLESS !== '1';
 
@@ -28,11 +25,6 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     video: 'off',
     headless: !headed,
+    channel: 'chrome',
   },
-  projects: [
-    {
-      name: 'chrome',
-      use: { ...devices['Desktop Chrome'], channel: 'chrome' },
-    },
-  ],
 });

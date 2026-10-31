@@ -1,8 +1,8 @@
-# eBay cart budget
+# AliExpress cart budget
 
-Playwright + TypeScript test for ebay.com.
+Playwright + TypeScript test for AliExpress.
 
-The test opens eBay, searches for a product, keeps items under a max price, adds them to the cart, and checks that the item total stays within the budget.
+The test opens AliExpress, searches for a product, keeps items under a max price, adds them to the cart, and checks that the item total stays within the budget.
 
 ## What you need
 
@@ -67,8 +67,8 @@ If `winget` is not recognized, download it from [https://www.google.com/chrome](
 
 ```powershell
 cd $env:USERPROFILE
-git clone https://github.com/avishaaz1/ebay-e2e-homework.git
-cd ebay-e2e-homework
+git clone https://github.com/avishaaz1/ness-e2e-homework.git
+cd ness-e2e-homework
 npm install
 ```
 
@@ -80,7 +80,7 @@ npm install
 npm test
 ```
 
-Playwright opens Chrome and you can watch the run. Each run starts in a fresh window, so the cart and history are empty. Before the test itself, the project opens ebay.com, closes the shipping popup if it is there, and continues as a guest.
+Playwright opens Chrome and you can watch the run. Each run starts in a fresh window, so the cart and history are empty. The test stays a guest. No login is required.
 
 When the test finishes, pass or fail, Allure opens in the browser. The terminal prints a line like `Allure is running on http://127.0.0.1:54321`. That page shows whether the test passed or failed. Leave the terminal open while you read the report. Press Ctrl+C when you are done.
 
@@ -88,10 +88,10 @@ When the test finishes, pass or fail, Allure opens in the browser. The terminal 
 
 The four sets are in `src/utils/scenario_common.ts`:
 
-- `fiveItems` — 5 shoes under 220, then the cart check
-- `fewerThanFive` — `purple patent oxford` under 300, so the list is shorter than 5
+- `fiveItems` — 5 shoes under 50, then the cart check
+- `fewerThanFive` — one product id, so the search opens that single item
 - `noneFound` — max price 0, so the result list is empty
-- `nextPage` — 61 shoes, so the run clicks Next (a page holds 60 cards)
+- `nextPage` — shoes under 50, more than one page holds, so the run clicks Next
 
 To hide the browser window, in PowerShell:
 
@@ -99,27 +99,6 @@ To hide the browser window, in PowerShell:
 $env:HEADLESS = "1"
 npm test
 ```
-
-## Optional login
-
-With no username and password the test stays a guest, and Add to cart still works. If eBay shows a captcha on login, leave the credentials empty.
-
-Copy `.env.example` to `.env` and fill in:
-
-```
-EBAY_USERNAME=your-email
-EBAY_PASSWORD=your-password
-```
-
-Or set them for one run:
-
-```powershell
-$env:EBAY_USERNAME = "your-email"
-$env:EBAY_PASSWORD = "your-password"
-npm test
-```
-
-`.env` is not part of the project download. Do not commit it.
 
 ## Reports and screenshots
 
@@ -143,36 +122,36 @@ That launch config expects Node at `C:\Program Files\nodejs\node.exe`. If Node i
 ## How the code is organized
 
 ```
-src/pages/*_pom.ts            page objects and their locators
-src/flows/ebay_shop_common.ts the shop actions
-src/config/site_common.ts     site addresses
-src/config/browser_common.ts  window size and locale
-src/utils/scenario_common.ts  search, max price, item limit
-src/utils/price_common.ts     price parsing
-src/utils/env_common.ts       reads .env
-src/utils/logger_common.ts    console log
-tests/cart-budget.spec.ts     the test
-tests/fixtures_common.ts      builds the shop before the test
+src/pages/*_pom.ts                     page objects and their locators
+src/flows/aliexpress_shop_common.ts    the shop actions
+src/config/site_common.ts              site addresses
+src/config/browser_common.ts           window size and locale
+src/utils/scenario_common.ts           search, max price, item limit
+src/utils/price_common.ts              price parsing
+src/utils/logger_common.ts             console log
+tests/cart-budget.spec.ts              the tests
+tests/fixtures_common.ts               builds the shop before the test
 ```
 
-`EbayShop` methods:
+`AliShop` methods:
 
-- `signIn()` — log in, or stay a guest. The fixture calls this before the test.
+- `open()` — open AliExpress. The fixture calls this before the test.
 - `searchItemsByNameUnderPrice(query, maxPrice, limit = 5)`
 - `addItemsToCart(urls)`
 - `assertCartTotalNotExceeds(budgetPerItem, itemsCount)`
 
-Search reads result cards with xpath (`li.s-card` and an `/itm/` link). Locators stay on stable ids and labels: `#gh-ac`, `#gh-search-btn`, `#atcBtn_btn_1`, and `a[aria-label="Go to next search page"]`. If the current page does not have enough items under the price, the test clicks Next until it reaches the limit or the pages run out.
+Search reads `a.search-card-item`. The sale price is the first ILS amount on the card. If the current page does not have enough items under the price, the test clicks Next until it reaches the limit or the pages run out. A product id opens that item directly, so the result is that one URL. A max price of 0 returns an empty list.
+
+The Next test opens the results address directly. Opening the homepage first hides the Next control.
 
 ## Assumptions
 
-- Prices are compared in the currency eBay shows. With an Israel ship-to address that is ILS, so `maxPrice` is compared to that number.
-- Each run starts in a fresh browser window, so the cart and history start empty.
-- Quantity stays 1. Size and color are picked at random from the options that are in stock.
-- A price range such as `ILS 12.42 to ILS 31.10` uses the higher number.
-- The cart check reads the Item line (`data-test-id="ITEM_TOTAL"`). eBay's Subtotal includes shipping, and the search filter does not. The Subtotal is only written to the log.
+- The site redirects to `he.aliexpress.com`. Prices are in ILS, so `maxPrice` is compared to that number.
+- Each run starts in a fresh browser window, so the cart and history start empty. The test stays a guest.
+- Quantity stays 1. If the item asks for a size or color, the first available option is chosen.
+- The sale price is the first amount on the line. The crossed-out original price and the "you save" amount are not the price paid.
+- The cart check sums the line prices (`.cart-product-price-buynow`). The summary stays 0 until a checkbox is ticked, so it is not the total.
 - The cart total must be `<= maxPrice * item count`.
-- Listings with no Add to cart button are skipped and screenshotted. The test does not click Buy It Now.
-- The placeholder "Shop on eBay" card (`/itm/123456`) is ignored.
+- The Next test does not add those items to the cart.
 
 The bug-review writeup is in `ReadMeAIBugs.md`.

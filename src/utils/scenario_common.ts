@@ -4,30 +4,30 @@ export type Scenario = {
   limit: number;
 };
 
-// First page already has 5 matches, so Next is not needed.
+// The first results page already has more than 5 matches under this price.
 export const fiveItems: Scenario = {
   query: 'shoes',
-  maxPrice: 220,
+  maxPrice: 50,
   limit: 5,
 };
 
-// Narrow enough that the exact matches stay under 5. Loose suggestions are ignored.
+// A product id opens that one item. A plain "shoes" search fills the limit on page 1.
 export const fewerThanFive: Scenario = {
-  query: 'purple patent oxford',
-  maxPrice: 300,
+  query: '1005012394007227',
+  maxPrice: 80,
   limit: 5,
 };
 
-// Nothing is priced at 0, so every card is skipped and the result is empty.
+// A max price of 0 matches nothing, so the result list is empty.
 export const noneFound: Scenario = {
   query: 'shoes',
   maxPrice: 0,
   limit: 5,
 };
 
-// A results page holds 60 cards, so 61 forces a click on Next.
+// More than one results page holds, so the run has to open Next.
 export const nextPage: Scenario = {
   query: 'shoes',
-  maxPrice: 220,
-  limit: 61,
+  maxPrice: 50,
+  limit: 80,
 };

@@ -1,104 +1,37 @@
 import { type Locator, type Page } from '@playwright/test';
-import { ELEMENT_TIMEOUT } from '../config/browser_common';
 import { log } from '../utils/logger_common';
-import { isErrorPage } from '../utils/page_common';
-import { appears, waitVisible } from '../utils/wait_common';
-
-const QUANTITY = '1';
-const CART_URL = /cart\.(ebay|payments\.ebay)\.com/;
 
 export class ItemPage {
-  private readonly variants: Locator;
-  private readonly variantButtons: Locator;
-  private readonly options: Locator;
-  private readonly quantity: Locator;
   private readonly addToCartButton: Locator;
-  private readonly seeInCart: Locator;
+  private readonly cartBadge: Locator;
+  private readonly choicePrompt: Locator;
+  private readonly skuOption: Locator;
 
   constructor(private readonly page: Page) {
-    this.variants = page.locator('[data-testid="x-msku-evo"]');
-    this.variantButtons = this.variants.locator('button.listbox-button__control');
-    this.options = page.locator('[role="listbox"] [role="option"]');
-    this.quantity = page.locator('#qtyTextBox');
-    this.addToCartButton = page.locator('#atcBtn_btn_1');
-    this.seeInCart = page.getByText(/see in cart/i);
+    this.addToCartButton = page.getByRole('button', { name: /הוסיפו לעגלה|add to cart/i });
+    this.cartBadge = page.locator('a[aria-label*="cart" i]');
+    this.choicePrompt = page.getByText(/בחרו|please select/i);
+    this.skuOption = page.locator('[class*="sku"] [class*="item"]');
   }
 
   async open(url: string): Promise<void> {
     await this.page.goto(url, { waitUntil: 'domcontentloaded' });
-    for (let attempt = 1; attempt <= 3 && (await isErrorPage(this.page)); attempt++) {
-      log.info(`item page failed, refreshing (${attempt})`);
-      await this.page.reload({ waitUntil: 'domcontentloaded' });
-    }
-    await Promise.race([
-      this.variants.first().waitFor({ state: 'visible', timeout: ELEMENT_TIMEOUT }),
-      this.addToCartButton.waitFor({ state: 'visible', timeout: ELEMENT_TIMEOUT }),
-    ]).catch(() => undefined);
-  }
-
-  // size / color live under data-testid="x-msku-evo". The ids next to them change every load.
-  async chooseRandomVariants(): Promise<void> {
-    if (!(await appears(this.variants.first(), 5_000))) return;
-
-    const total = await this.variantButtons.count();
-
-    for (let index = 0; index < total; index++) {
-      const button = this.variantButtons.nth(index);
-      if (!(await appears(button, 5_000))) continue;
-
-      await waitVisible(button);
-      await button.click();
-      if (!(await appears(this.options.first(), 5_000))) {
-        await this.page.keyboard.press('Escape');
-        continue;
-      }
-
-      const labels = (await this.options.allInnerTexts()).map((text) => text.replace(/\s+/g, ' ').trim());
-      const usable = labels
-        .map((label, optionIndex) => ({ label, optionIndex }))
-        .filter((option) => option.label && !/^select(\s+selected)?$/i.test(option.label))
-        .filter((option) => !/out of stock|unavailable/i.test(option.label));
-
-      if (usable.length === 0) {
-        await this.page.keyboard.press('Escape');
-        continue;
-      }
-
-      const pick = usable[Math.floor(Math.random() * usable.length)];
-      log.info(`variant: ${pick.label}`);
-      const option = this.options.nth(pick.optionIndex);
-      await waitVisible(option);
-      await option.click();
-      await this.page.waitForLoadState('domcontentloaded');
-    }
-
-    // quantity stays 1. a random quantity would break the per-item budget.
-    if (await appears(this.quantity, 3_000)) {
-      const disabled = await this.quantity.isDisabled().catch(() => true);
-      if (!disabled) {
-        await waitVisible(this.quantity);
-        await this.quantity.fill(QUANTITY);
-      }
-    }
+    await this.page.keyboard.press('Escape');
+    await this.addToCartButton.first().waitFor({ state: 'visible', timeout: 20_000 });
   }
 
   async addToCart(): Promise<boolean> {
-    if (!(await appears(this.addToCartButton))) {
-      log.info('no Add to cart on this item, skipping');
-      return false;
+    await this.addToCartButton.first().click();
+
+    if (await this.choicePrompt.first().isVisible({ timeout: 2_000 }).catch(() => false)) {
+      if (await this.skuOption.first().isVisible().catch(() => false)) await this.skuOption.first().click();
+      await this.addToCartButton.first().click();
     }
 
-    // force: the button sits under a sticky header and Playwright keeps waiting for it to stop moving.
-    // noWaitAfter: the cart navigation is slow and should not fail the click itself.
-    await this.addToCartButton.scrollIntoViewIfNeeded().catch(() => undefined);
-    await this.addToCartButton.click({ force: true, noWaitAfter: true });
-
-    const landedInCart = this.page.waitForURL(CART_URL, { timeout: 35_000 });
-    const stayedOnItem = this.seeInCart.first().waitFor({ timeout: 35_000 });
-    await Promise.race([landedInCart, stayedOnItem]).catch(() => undefined);
-
-    const onCart = CART_URL.test(this.page.url());
-    const seeInCart = await this.seeInCart.first().isVisible().catch(() => false);
-    return onCart || seeInCart;
+    await this.cartBadge.first().waitFor({ state: 'visible', timeout: 10_000 }).catch(() => undefined);
+    const label = (await this.cartBadge.first().getAttribute('aria-label').catch(() => '')) ?? '';
+    const added = /[1-9]/.test(label);
+    if (!added) log.info(`cart badge after click: ${label || 'missing'}`);
+    return added;
   }
 }

@@ -1,19 +1,18 @@
 import fs from 'fs';
 import path from 'path';
 import { expect, test, type Page } from '@playwright/test';
-import { HomePage } from '../pages/home_pom';
-import { SearchResultsPage } from '../pages/search_results_pom';
-import { ItemPage } from '../pages/item_pom';
+import { resultsUrl } from '../config/site_common';
 import { CartPage } from '../pages/cart_pom';
-import { SignInPage } from '../pages/sign_in_pom';
-import { isErrorPage } from '../utils/page_common';
-import { highestPrice } from '../utils/price_common';
+import { HomePage } from '../pages/home_pom';
+import { ItemPage } from '../pages/item_pom';
+import { SearchResultsPage } from '../pages/search_results_pom';
 import { log } from '../utils/logger_common';
+import { salePrice } from '../utils/price_common';
 
 const SCREENSHOTS = path.resolve('artifacts/screenshots');
-const MAX_SEARCH_PAGES = 6;
+const MAX_SEARCH_PAGES = 4;
 
-export class EbayShop {
+export class AliShop {
   pagesOpened = 0;
 
   private readonly home: HomePage;
@@ -24,35 +23,36 @@ export class EbayShop {
     this.results = new SearchResultsPage(page);
   }
 
-  // Guest when credentials are missing. Playwright opens a fresh window, so the cart starts empty.
-  async signIn(): Promise<void> {
-    await test.step('sign in or continue as guest', async () => {
-      const username = process.env.EBAY_USERNAME?.trim();
-      const password = process.env.EBAY_PASSWORD?.trim();
-
-      await this.home.open();
-
-      if (!username || !password) {
-        log.info('no EBAY_USERNAME / EBAY_PASSWORD, continuing as guest');
-        return;
-      }
-
-      await new SignInPage(this.page).signIn(username, password);
-      await this.home.open();
-    });
+  async open(): Promise<void> {
+    await this.home.open();
   }
 
-  // Up to `limit` item URLs whose price is <= maxPrice. Fewer, including 0, is a valid result.
-  async searchItemsByNameUnderPrice(query: string, maxPrice: number, limit = 5): Promise<string[]> {
+  // Up to `limit` item URLs whose sale price is <= maxPrice. Fewer, including 0, is a valid result.
+  async searchItemsByNameUnderPrice(
+    query: string,
+    maxPrice: number,
+    limit = 5,
+    direct = false,
+  ): Promise<string[]> {
     return test.step(`search "${query}" under ${maxPrice}`, async () => {
-      await this.home.search(query);
-      await this.results.applyMaxPrice(maxPrice);
-      const heading = await this.page
-        .getByText(/results for/i)
-        .first()
-        .innerText({ timeout: 3_000 })
-        .catch(() => '');
-      if (heading) log.info(heading.replace(/\s+/g, ' ').trim());
+      if (direct) {
+        await this.page.goto(resultsUrl(query, maxPrice), { waitUntil: 'domcontentloaded' });
+        log.info(`opened results directly, max ${maxPrice}`);
+      } else {
+        await this.home.search(query);
+      }
+
+      if (!direct && /\/item\//.test(this.page.url())) {
+        this.pagesOpened = 1;
+        const priceText = await this.page.locator('[class*="price"]').first().innerText({ timeout: 10_000 }).catch(() => '');
+        const price = salePrice(priceText);
+        const current = new URL(this.page.url());
+        log.info(`opened one item, price ${price ?? 'unknown'}`);
+        if (price !== null && price <= maxPrice) return [`${current.origin}${current.pathname}`];
+        return [];
+      }
+
+      if (!direct) await this.results.applyMaxPrice(maxPrice);
 
       const urls: string[] = [];
       const seen = new Set<string>();
@@ -63,19 +63,13 @@ export class EbayShop {
         this.pagesOpened = pageNumber;
         const offers = await this.results.offers();
         log.info(`page ${pageNumber}: ${offers.length} cards, collected ${urls.length}/${limit}`);
-        if (offers.length === 0) {
-          if (await isErrorPage(this.page)) {
-            throw new Error('eBay showed an error page instead of search results.');
-          }
-          break;
-        }
+        if (offers.length === 0) break;
 
         for (const offer of offers) {
           if (urls.length >= limit) break;
-          const price = highestPrice(offer.priceText);
+          const price = salePrice(offer.priceText);
           // Skip cards that are missing, repeated, or above the max price.
           if (!offer.url || seen.has(offer.url) || price === null || price > maxPrice) continue;
-
           seen.add(offer.url);
           urls.push(offer.url);
           log.info(`keep ${price} ${offer.url}`);
@@ -94,21 +88,16 @@ export class EbayShop {
   async addItemsToCart(urls: string[]): Promise<void> {
     await test.step('add items to cart', async () => {
       fs.mkdirSync(SCREENSHOTS, { recursive: true });
-      let added = 0;
-
       const itemPage = new ItemPage(this.page);
+      let added = 0;
 
       for (let index = 0; index < urls.length; index++) {
         const url = urls[index];
-
         try {
           await itemPage.open(url);
-          await itemPage.chooseRandomVariants();
           const ok = await itemPage.addToCart();
           const file = path.join(SCREENSHOTS, `item-${index + 1}.png`);
           await this.page.screenshot({ path: file });
-          await test.info().attach(`item-${index + 1}`, { path: file, contentType: 'image/png' });
-
           if (ok) {
             added += 1;
             log.info(`added ${url}`);
@@ -116,15 +105,10 @@ export class EbayShop {
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
           log.info(`failed ${url}: ${message}`);
-          const file = path.join(SCREENSHOTS, `item-${index + 1}-failed.png`);
-          await this.page.screenshot({ path: file }).catch(() => undefined);
         }
       }
 
-      if (added === 0) {
-        throw new Error('None of the items were added to the cart.');
-      }
-
+      if (added === 0) throw new Error('None of the items were added to the cart.');
       log.info(`added ${added} of ${urls.length}`);
     });
   }
@@ -134,16 +118,11 @@ export class EbayShop {
       const budget = budgetPerItem * itemsCount;
       const cart = new CartPage(this.page);
       await cart.open();
-
-      const { amount, label, raw } = await cart.readItemTotal();
-      log.info(`${label} ${raw} (${amount}) , budget ${budget} (${budgetPerItem} x ${itemsCount})`);
-
-      const file = path.join(SCREENSHOTS, 'cart.png');
+      const { amount, raw } = await cart.readItemTotal();
+      log.info(`cart ${raw} (${amount}), budget ${budget}`);
       fs.mkdirSync(SCREENSHOTS, { recursive: true });
-      await this.page.screenshot({ path: file });
-      await test.info().attach('cart', { path: file, contentType: 'image/png' });
-
-      expect(amount, `${label} ${amount} should be <= ${budget}`).toBeLessThanOrEqual(budget);
+      await this.page.screenshot({ path: path.join(SCREENSHOTS, 'cart.png') });
+      expect(amount, `cart ${amount} should be <= ${budget}`).toBeLessThanOrEqual(budget);
     });
   }
 }

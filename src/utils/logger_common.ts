@@ -1,5 +1,5 @@
 export const log = {
   info(message: string): void {
-    console.log(`[ebay] ${message}`);
+    console.log(`[aliexpress] ${message}`);
   },
 };
