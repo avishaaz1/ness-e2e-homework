@@ -2,6 +2,7 @@ import { execSync, spawn } from 'child_process';
 import fs from 'fs';
 import http from 'http';
 import path from 'path';
+import { VIEWPORT_HEIGHT, VIEWPORT_WIDTH } from '../config/browser_common';
 
 const PORT = 9333;
 const CDP_FILE = path.resolve('artifacts/cdp.json');
@@ -87,6 +88,7 @@ export async function startChrome(): Promise<void> {
     version = await readJson(`http://127.0.0.1:${PORT}/json/version`);
   } catch {
     freePort();
+    // Host process only. The test opens its own Incognito window on top of this.
     const profile = path.resolve('.chrome-profile');
     fs.mkdirSync(profile, { recursive: true });
     const child = spawn(
@@ -97,7 +99,7 @@ export async function startChrome(): Promise<void> {
         '--no-first-run',
         '--no-default-browser-check',
         '--disable-blink-features=AutomationControlled',
-        '--window-size=1366,900',
+        `--window-size=${VIEWPORT_WIDTH},${VIEWPORT_HEIGHT}`,
         ...(process.env.HEADLESS === '1' ? ['--headless=new'] : []),
         'about:blank',
       ],

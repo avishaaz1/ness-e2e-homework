@@ -1,0 +1,31 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run Playwright test",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "C:\\Program Files\\nodejs\\node.exe",
+      "cwd": "${workspaceFolder}",
+      "program": "${workspaceFolder}/node_modules/@playwright/test/cli.js",
+      "args": ["test", "tests/cart-budget.spec.ts", "--headed"],
+      "console": "integratedTerminal",
+      "autoAttachChildProcesses": true
+    },
+    {
+      "name": "Debug Playwright test",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "C:\\Program Files\\nodejs\\node.exe",
+      "cwd": "${workspaceFolder}",
+      "program": "${workspaceFolder}/node_modules/@playwright/test/cli.js",
+      "args": ["test", "tests/cart-budget.spec.ts", "--headed", "--timeout=0", "--workers=1"],
+      "env": {
+        "PWDEBUG": "0"
+      },
+      "console": "integratedTerminal",
+      "autoAttachChildProcesses": true,
+      "skipFiles": ["<node_internals>/**", "**/node_modules/**"]
+    }
+  ]
+}

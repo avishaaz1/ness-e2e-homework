@@ -1,15 +1,16 @@
 import fs from 'fs';
 import path from 'path';
 import { expect, test, type Page } from '@playwright/test';
-import { HomePage } from '../pages/HomePage';
-import { SearchResultsPage } from '../pages/SearchResultsPage';
-import { ItemPage } from '../pages/ItemPage';
-import { CartPage } from '../pages/CartPage';
-import { SignInPage } from '../pages/SignInPage';
-import { highestPrice } from '../utils/price';
-import { log } from '../utils/logger';
+import { HomePage } from '../pages/home_pom';
+import { SearchResultsPage } from '../pages/search_results_pom';
+import { ItemPage } from '../pages/item_pom';
+import { CartPage } from '../pages/cart_pom';
+import { SignInPage } from '../pages/sign_in_pom';
+import { highestPrice } from '../utils/price_common';
+import { log } from '../utils/logger_common';
 
 const SCREENSHOTS = path.resolve('artifacts/screenshots');
+const MAX_SEARCH_PAGES = 6;
 
 export class EbayShop {
   private readonly home: HomePage;
@@ -20,7 +21,7 @@ export class EbayShop {
     this.results = new SearchResultsPage(page);
   }
 
-  // הזדהות. בלי משתמש וסיסמה ב-env נשארים כאורח, והסל עדיין עובד.
+  // Guest when credentials are missing. A new Incognito window each run, so the cart starts empty.
   async signIn(): Promise<void> {
     await test.step('sign in or continue as guest', async () => {
       const username = process.env.EBAY_USERNAME?.trim();
@@ -30,8 +31,6 @@ export class EbayShop {
 
       if (!username || !password) {
         log.info('no EBAY_USERNAME / EBAY_PASSWORD, continuing as guest');
-        await new CartPage(this.page).clear();
-        await this.home.open();
         return;
       }
 
@@ -48,9 +47,8 @@ export class EbayShop {
 
       const urls: string[] = [];
       const seen = new Set<string>();
-      const maxPages = 6;
 
-      for (let pageNumber = 1; pageNumber <= maxPages && urls.length < limit; pageNumber++) {
+      for (let pageNumber = 1; pageNumber <= MAX_SEARCH_PAGES && urls.length < limit; pageNumber++) {
         const cards = this.results.cards();
         const count = await cards.count();
         log.info(`page ${pageNumber}: ${count} cards, collected ${urls.length}/${limit}`);

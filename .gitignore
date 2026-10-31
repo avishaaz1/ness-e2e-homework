@@ -2,7 +2,9 @@ node_modules/
 test-results/
 playwright-report/
 reports/allure-report/
+reports/allure-results/
 .chrome-profile/
+artifacts/popup-check-profile/
 artifacts/cdp.json
 artifacts/chrome.pid
 .env
