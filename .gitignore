@@ -3,10 +3,10 @@ test-results/
 playwright-report/
 reports/allure-report/
 reports/allure-results/
+reports/html/
+reports/junit/
 .chrome-profile/
-artifacts/popup-check-profile/
-artifacts/cdp.json
-artifacts/chrome.pid
+artifacts/
 .env
 *.log
 dist/
