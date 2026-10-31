@@ -6,6 +6,7 @@ import { SearchResultsPage } from '../pages/search_results_pom';
 import { ItemPage } from '../pages/item_pom';
 import { CartPage } from '../pages/cart_pom';
 import { SignInPage } from '../pages/sign_in_pom';
+import { isErrorPage } from '../utils/page_common';
 import { highestPrice } from '../utils/price_common';
 import { log } from '../utils/logger_common';
 
@@ -13,6 +14,8 @@ const SCREENSHOTS = path.resolve('artifacts/screenshots');
 const MAX_SEARCH_PAGES = 6;
 
 export class EbayShop {
+  pagesOpened = 0;
+
   private readonly home: HomePage;
   private readonly results: SearchResultsPage;
 
@@ -39,33 +42,47 @@ export class EbayShop {
     });
   }
 
-  // returns up to `limit` item urls whose price is <= maxPrice
+  // Up to `limit` item URLs whose price is <= maxPrice. Fewer, including 0, is a valid result.
   async searchItemsByNameUnderPrice(query: string, maxPrice: number, limit = 5): Promise<string[]> {
     return test.step(`search "${query}" under ${maxPrice}`, async () => {
       await this.home.search(query);
       await this.results.applyMaxPrice(maxPrice);
+      const heading = await this.page
+        .getByText(/results for/i)
+        .first()
+        .innerText({ timeout: 3_000 })
+        .catch(() => '');
+      if (heading) log.info(heading.replace(/\s+/g, ' ').trim());
 
       const urls: string[] = [];
       const seen = new Set<string>();
+      this.pagesOpened = 0;
 
+      // Keep going while this page has matches and we still need more items.
       for (let pageNumber = 1; pageNumber <= MAX_SEARCH_PAGES && urls.length < limit; pageNumber++) {
-        const cards = this.results.cards();
-        const count = await cards.count();
-        log.info(`page ${pageNumber}: ${count} cards, collected ${urls.length}/${limit}`);
+        this.pagesOpened = pageNumber;
+        const offers = await this.results.offers();
+        log.info(`page ${pageNumber}: ${offers.length} cards, collected ${urls.length}/${limit}`);
+        if (offers.length === 0) {
+          if (await isErrorPage(this.page)) {
+            throw new Error('eBay showed an error page instead of search results.');
+          }
+          break;
+        }
 
-        for (let index = 0; index < count && urls.length < limit; index++) {
-          const card = cards.nth(index);
-          const url = await this.results.itemUrl(card);
-          const priceText = await this.results.priceText(card);
-          const price = highestPrice(priceText);
-          if (!url || seen.has(url) || price === null || price > maxPrice) continue;
+        for (const offer of offers) {
+          if (urls.length >= limit) break;
+          const price = highestPrice(offer.priceText);
+          // Skip cards that are missing, repeated, or above the max price.
+          if (!offer.url || seen.has(offer.url) || price === null || price > maxPrice) continue;
 
-          seen.add(url);
-          urls.push(url);
-          log.info(`keep ${price} ${url}`);
+          seen.add(offer.url);
+          urls.push(offer.url);
+          log.info(`keep ${price} ${offer.url}`);
         }
 
         if (urls.length >= limit) break;
+        // Next exists: continue. No Next, or the page did not change: stop and return what we have.
         const moved = await this.results.goToNextPage();
         if (!moved) break;
       }
@@ -79,17 +96,17 @@ export class EbayShop {
       fs.mkdirSync(SCREENSHOTS, { recursive: true });
       let added = 0;
 
+      const itemPage = new ItemPage(this.page);
+
       for (let index = 0; index < urls.length; index++) {
         const url = urls[index];
-        const item = await this.page.context().newPage();
-        const itemPage = new ItemPage(item);
 
         try {
           await itemPage.open(url);
           await itemPage.chooseRandomVariants();
           const ok = await itemPage.addToCart();
           const file = path.join(SCREENSHOTS, `item-${index + 1}.png`);
-          await item.screenshot({ path: file });
+          await this.page.screenshot({ path: file });
           await test.info().attach(`item-${index + 1}`, { path: file, contentType: 'image/png' });
 
           if (ok) {
@@ -100,9 +117,7 @@ export class EbayShop {
           const message = error instanceof Error ? error.message : String(error);
           log.info(`failed ${url}: ${message}`);
           const file = path.join(SCREENSHOTS, `item-${index + 1}-failed.png`);
-          await item.screenshot({ path: file }).catch(() => undefined);
-        } finally {
-          await item.close();
+          await this.page.screenshot({ path: file }).catch(() => undefined);
         }
       }
 
@@ -111,8 +126,6 @@ export class EbayShop {
       }
 
       log.info(`added ${added} of ${urls.length}`);
-      // search tab is still this.page, the item tabs are closed
-      await this.page.bringToFront();
     });
   }
 

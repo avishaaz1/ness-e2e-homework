@@ -9,14 +9,12 @@ export class HomePage {
   private readonly searchButton: Locator;
   private readonly acceptCookies: Locator;
   private readonly closeDialog: Locator;
-  private readonly countryPopupClose: Locator;
 
   constructor(private readonly page: Page) {
     this.searchBox = page.locator('#gh-ac');
     this.searchButton = page.locator('#gh-search-btn');
     this.acceptCookies = page.getByRole('button', { name: /accept all|i agree|agree/i });
     this.closeDialog = page.getByRole('button', { name: /close dialog|close dialogue/i });
-    this.countryPopupClose = page.locator('.address-dialog__lightbox').getByRole('button', { name: 'Dismiss' });
   }
 
   async open(): Promise<void> {
@@ -30,9 +28,14 @@ export class HomePage {
   }
 
   async closeCountryPopup(): Promise<void> {
-    if (!(await this.countryPopupClose.isVisible({ timeout: 3_000 }).catch(() => false))) return;
-    await this.countryPopupClose.click();
-    await this.countryPopupClose.waitFor({ state: 'hidden', timeout: 5_000 }).catch(() => undefined);
+    const dialog = this.page.locator('.address-dialog__lightbox');
+    if (!(await appears(dialog, 4_000))) return;
+
+    const button = dialog.getByRole('button').first();
+    await button.click({ force: true, timeout: 3_000 }).catch(async () => {
+      await this.page.keyboard.press('Escape');
+    });
+    await dialog.waitFor({ state: 'hidden', timeout: 5_000 }).catch(() => undefined);
   }
 
   private async blocked(): Promise<boolean> {
@@ -80,11 +83,13 @@ export class HomePage {
   }
 
   private async submitSearch(query: string): Promise<void> {
+    await this.closeCountryPopup();
     await waitVisible(this.searchBox);
-    await this.searchBox.click();
+    // force: the shipping dialog covers the header and blocks a normal click.
+    await this.searchBox.click({ force: true });
     await this.searchBox.fill(query);
     await waitVisible(this.searchButton);
-    await this.searchButton.click();
+    await this.searchButton.click({ force: true });
     await this.page.waitForURL(/\/sch\//, { timeout: 30_000 });
     await this.dismissPopups();
   }

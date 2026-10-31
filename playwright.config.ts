@@ -16,7 +16,6 @@ export default defineConfig({
   retries: 0,
   reporter: [
     ['list'],
-    ['html', { outputFolder: 'reports/html', open: 'never' }],
     ['allure-playwright', { resultsDir: 'reports/allure-results' }],
   ],
   use: {

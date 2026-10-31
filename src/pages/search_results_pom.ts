@@ -1,6 +1,7 @@
 import { type Locator, type Page } from '@playwright/test';
 import { site } from '../config/site_common';
 import { log } from '../utils/logger_common';
+import { isErrorPage } from '../utils/page_common';
 import { appears, waitVisible } from '../utils/wait_common';
 
 const PLACEHOLDER_ITEM = '/itm/123456';
@@ -31,10 +32,12 @@ export class SearchResultsPage {
   }
 
   async applyMaxPrice(maxPrice: number): Promise<void> {
+    await this.recover();
     if (!(await appears(this.maxPriceBox))) {
       log.info('price boxes are not on the page, setting _udhi on the url');
       await this.applyPriceOnUrl(maxPrice);
-      await waitVisible(this.cards().first());
+      await this.recover();
+      await this.waitForCards();
       return;
     }
 
@@ -55,7 +58,21 @@ export class SearchResultsPage {
       await this.applyPriceOnUrl(maxPrice);
     }
 
-    await waitVisible(this.cards().first());
+    await this.recover();
+    await this.waitForCards();
+  }
+
+  private async recover(): Promise<void> {
+    for (let attempt = 1; attempt <= 3 && (await isErrorPage(this.page)); attempt++) {
+      log.info(`results page failed, refreshing (${attempt})`);
+      await this.page.reload({ waitUntil: 'domcontentloaded' });
+    }
+  }
+
+  // An empty result list is valid. Do not fail the search when no cards appear.
+  private async waitForCards(): Promise<void> {
+    const found = await appears(this.cards().first(), 8_000);
+    if (!found) log.info('no result cards on this page');
   }
 
   private async applyPriceOnUrl(maxPrice: number): Promise<void> {
@@ -82,14 +99,47 @@ export class SearchResultsPage {
     return `${absolute.origin}${absolute.pathname}`;
   }
 
+  // One browser call for the whole page. Reading each card separately is slow enough to hit the test timeout.
+  async offers(): Promise<{ url: string; priceText: string }[]> {
+    const rows = await this.page.evaluate((placeholder) => {
+      const marker = Array.from(document.querySelectorAll('h1, h2, h3, span, div')).find((element) => {
+        const text = (element.textContent ?? '').replace(/\s+/g, ' ').trim();
+        return text.length < 80 && /matching fewer words/i.test(text);
+      });
+      return Array.from(document.querySelectorAll('li.s-card')).flatMap((card) => {
+        // Cards under "Results matching fewer words" are suggestions, not matches for this search.
+        if (marker && marker.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING) return [];
+        const link = card.querySelector('a.s-card__link');
+        const href = link?.getAttribute('href') ?? '';
+        if (!href.includes('/itm/') || href.includes(placeholder)) return [];
+        const priceText = (card.querySelector('.s-card__price')?.textContent ?? '').replace(/\s+/g, ' ').trim();
+        return [{ href, priceText }];
+      });
+    }, PLACEHOLDER_ITEM);
+
+    return rows.map((row) => {
+      const absolute = new URL(row.href, site.HOME);
+      return { url: `${absolute.origin}${absolute.pathname}`, priceText: row.priceText };
+    });
+  }
+
   async goToNextPage(): Promise<boolean> {
     if (!(await appears(this.nextPage.first(), 5_000))) return false;
 
     const before = await this.itemUrl(this.cards().first());
     await waitVisible(this.nextPage.first());
+    log.info('clicking next results page');
     await this.nextPage.first().click();
     await this.page.waitForLoadState('domcontentloaded');
-    await waitVisible(this.cards().first());
+
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      if (await isErrorPage(this.page)) {
+        log.info(`next page failed, refreshing (${attempt})`);
+        await this.page.reload({ waitUntil: 'domcontentloaded' });
+        continue;
+      }
+      if (await appears(this.cards().first(), 8_000)) break;
+    }
 
     const after = await this.itemUrl(this.cards().first()).catch(() => null);
     return Boolean(after && after !== before);

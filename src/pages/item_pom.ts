@@ -1,6 +1,7 @@
 import { type Locator, type Page } from '@playwright/test';
 import { ELEMENT_TIMEOUT } from '../config/browser_common';
 import { log } from '../utils/logger_common';
+import { isErrorPage } from '../utils/page_common';
 import { appears, waitVisible } from '../utils/wait_common';
 
 const QUANTITY = '1';
@@ -25,6 +26,10 @@ export class ItemPage {
 
   async open(url: string): Promise<void> {
     await this.page.goto(url, { waitUntil: 'domcontentloaded' });
+    for (let attempt = 1; attempt <= 3 && (await isErrorPage(this.page)); attempt++) {
+      log.info(`item page failed, refreshing (${attempt})`);
+      await this.page.reload({ waitUntil: 'domcontentloaded' });
+    }
     await Promise.race([
       this.variants.first().waitFor({ state: 'visible', timeout: ELEMENT_TIMEOUT }),
       this.addToCartButton.waitFor({ state: 'visible', timeout: ELEMENT_TIMEOUT }),

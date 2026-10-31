@@ -84,13 +84,14 @@ Playwright opens Chrome and you can watch the run. Each run starts in a fresh wi
 
 When the test finishes, pass or fail, Allure opens in the browser. The terminal prints a line like `Allure is running on http://127.0.0.1:54321`. That page shows whether the test passed or failed. Leave the terminal open while you read the report. Press Ctrl+C when you are done.
 
-The default search is in `src/utils/scenario_common.ts`:
+`npm test` runs every test in `tests`. The Allure report lists each one from that run.
 
-- search: `shoes`
-- max price: `220`
-- items: `5`
+The four sets are in `src/utils/scenario_common.ts`:
 
-Change those three values and run `npm test` again.
+- `fiveItems` — 5 shoes under 220, then the cart check
+- `fewerThanFive` — `purple patent oxford` under 300, so the list is shorter than 5
+- `noneFound` — max price 0, so the result list is empty
+- `nextPage` — 61 shoes, so the run clicks Next (a page holds 60 cards)
 
 To hide the browser window, in PowerShell:
 
@@ -125,19 +126,12 @@ npm test
 These folders are created on your machine when the test runs. They are not in git.
 
 - `reports/allure-report` — the Allure report, with pass or fail on the first screen
-- `reports/html` — the Playwright HTML report
 - `artifacts/screenshots` — one screenshot per added item, plus the cart
 
 `npm test` opens Allure and prints its link. To open the last Allure report again:
 
 ```bash
 npm run report:allure
-```
-
-Playwright's own report:
-
-```bash
-npm run report:html
 ```
 
 ## Debug in the editor

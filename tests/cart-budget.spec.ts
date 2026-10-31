@@ -1,18 +1,35 @@
 import { expect, test } from './fixtures_common';
-import { scenario } from '../src/utils/scenario_common';
-import { log } from '../src/utils/logger_common';
+import { fiveItems, fewerThanFive, nextPage, noneFound } from '../src/utils/scenario_common';
 
-test('find items under a price, add them to the cart, and check the total', async ({ shop }) => {
-  log.info(`${scenario.query}, max ${scenario.maxPrice}, limit ${scenario.limit}`);
+test('find 5 shoes under 220, add them to the cart, and check the total', async ({ shop }) => {
+  const urls = await shop.searchItemsByNameUnderPrice(fiveItems.query, fiveItems.maxPrice, fiveItems.limit);
 
-  const urls = await shop.searchItemsByNameUnderPrice(scenario.query, scenario.maxPrice, scenario.limit);
-  console.log(urls);
-  console.log(urls.length);
-  console.log('--------------------------------');
-  // the search function may return [] (that is allowed). this scenario should still find something.
-  expect(urls.length, 'no items matched the price filter').toBeGreaterThan(0);
-  expect(urls.length).toBeLessThanOrEqual(scenario.limit);
+  expect(urls.length).toBe(fiveItems.limit);
 
   await shop.addItemsToCart(urls);
-  await shop.assertCartTotalNotExceeds(scenario.maxPrice, urls.length);
+  await shop.assertCartTotalNotExceeds(fiveItems.maxPrice, urls.length);
+});
+
+test('find fewer than 5 items and return only those', async ({ shop }) => {
+  const urls = await shop.searchItemsByNameUnderPrice(
+    fewerThanFive.query,
+    fewerThanFive.maxPrice,
+    fewerThanFive.limit,
+  );
+
+  expect(urls.length).toBeGreaterThan(0);
+  expect(urls.length).toBeLessThan(fewerThanFive.limit);
+});
+
+test('find nothing and return an empty list', async ({ shop }) => {
+  const urls = await shop.searchItemsByNameUnderPrice(noneFound.query, noneFound.maxPrice, noneFound.limit);
+
+  expect(urls.length).toBe(0);
+});
+
+test('open the next results page when the first page has fewer than the limit', async ({ shop }) => {
+  const urls = await shop.searchItemsByNameUnderPrice(nextPage.query, nextPage.maxPrice, nextPage.limit);
+
+  expect(shop.pagesOpened).toBeGreaterThan(1);
+  expect(urls.length).toBe(nextPage.limit);
 });
