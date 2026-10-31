@@ -1,4 +1,4 @@
-import { type Locator, type Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 import { log } from '../utils/logger_common';
 
 export class ItemPage {
@@ -17,10 +17,13 @@ export class ItemPage {
   async open(url: string): Promise<void> {
     await this.page.goto(url, { waitUntil: 'domcontentloaded' });
     await this.page.keyboard.press('Escape');
-    await this.addToCartButton.first().waitFor({ state: 'visible', timeout: 20_000 });
+    await expect(
+      this.addToCartButton.first(),
+      `item page should show an add-to-cart button: ${url}`,
+    ).toBeVisible({ timeout: 20_000 });
   }
 
-  async addToCart(): Promise<boolean> {
+  async addToCart(): Promise<{ added: boolean; detail: string }> {
     await this.addToCartButton.first().click();
 
     if (await this.choicePrompt.first().isVisible({ timeout: 2_000 }).catch(() => false)) {
@@ -31,7 +34,10 @@ export class ItemPage {
     await this.cartBadge.first().waitFor({ state: 'visible', timeout: 10_000 }).catch(() => undefined);
     const label = (await this.cartBadge.first().getAttribute('aria-label').catch(() => '')) ?? '';
     const added = /[1-9]/.test(label);
-    if (!added) log.info(`cart badge after click: ${label || 'missing'}`);
-    return added;
+    const detail = added
+      ? `cart badge "${label}"`
+      : `cart badge did not show a count after add to cart (label: "${label || 'missing'}")`;
+    if (!added) log.info(detail);
+    return { added, detail };
   }
 }
