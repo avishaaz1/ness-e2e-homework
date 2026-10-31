@@ -1,12 +1,13 @@
 import fs from 'fs';
 import path from 'path';
 import { expect, test, type Page } from '@playwright/test';
-import { resultsUrl } from '../config/site_common';
+import { resultsUrl, withoutQuery } from '../config/site_common';
 import { CartPage } from '../pages/cart_pom';
 import { HomePage } from '../pages/home_pom';
 import { ItemPage } from '../pages/item_pom';
 import { SearchResultsPage } from '../pages/search_results_pom';
 import { log } from '../utils/logger_common';
+import { gotoPage } from '../utils/page_common';
 import { salePrice } from '../utils/price_common';
 
 const SCREENSHOTS = path.resolve('artifacts/screenshots');
@@ -17,10 +18,14 @@ export class AliShop {
 
   private readonly home: HomePage;
   private readonly results: SearchResultsPage;
+  private readonly item: ItemPage;
+  private readonly cart: CartPage;
 
   constructor(private readonly page: Page) {
     this.home = new HomePage(page);
     this.results = new SearchResultsPage(page);
+    this.item = new ItemPage(page);
+    this.cart = new CartPage(page);
   }
 
   async open(): Promise<void> {
@@ -31,12 +36,12 @@ export class AliShop {
   async searchItemsByNameUnderPrice(
     query: string,
     maxPrice: number,
-    limit = 5,
+    limit: number,
     direct = false,
   ): Promise<string[]> {
     return test.step(`search "${query}" under ${maxPrice}`, async () => {
       if (direct) {
-        await this.page.goto(resultsUrl(query, maxPrice), { waitUntil: 'domcontentloaded' });
+        await gotoPage(this.page, resultsUrl(query, maxPrice));
         log.info(`opened results directly, max ${maxPrice}`);
       } else {
         await this.home.search(query);
@@ -44,10 +49,9 @@ export class AliShop {
 
       if (!direct && /\/item\//.test(this.page.url())) {
         this.pagesOpened = 1;
-        const priceText = await this.page.locator('[class*="price"]').first().innerText({ timeout: 10_000 }).catch(() => '');
+        const priceText = await this.item.readPriceText();
         const price = salePrice(priceText);
-        const current = new URL(this.page.url());
-        const url = `${current.origin}${current.pathname}`;
+        const url = withoutQuery(this.page.url());
         log.info(`opened one item, price ${price ?? 'unknown'}`);
         if (price === null) {
           expect(
@@ -99,18 +103,15 @@ export class AliShop {
 
   async addItemsToCart(urls: string[]): Promise<void> {
     await test.step('add items to cart', async () => {
-      fs.mkdirSync(SCREENSHOTS, { recursive: true });
-      const itemPage = new ItemPage(this.page);
       let added = 0;
       const notAdded: string[] = [];
 
       for (let index = 0; index < urls.length; index++) {
         const url = urls[index];
         try {
-          await itemPage.open(url);
-          const result = await itemPage.addToCart();
-          const file = path.join(SCREENSHOTS, `item-${index + 1}.png`);
-          await this.page.screenshot({ path: file });
+          await this.item.open(url);
+          const result = await this.item.addToCart();
+          await this.page.screenshot({ path: this.screenshotPath(`item-${index + 1}.png`) });
           if (result.added) {
             added += 1;
             log.info(`added ${url}`);
@@ -132,6 +133,11 @@ export class AliShop {
     });
   }
 
+  private screenshotPath(name: string): string {
+    fs.mkdirSync(SCREENSHOTS, { recursive: true });
+    return path.join(SCREENSHOTS, name);
+  }
+
   private expectKeptPricesAtOrUnder(query: string, maxPrice: number, items: { url: string; price: number }[]): void {
     if (items.length === 0) return;
     const highest = Math.max(...items.map((item) => item.price));
@@ -145,12 +151,10 @@ export class AliShop {
   async assertCartTotalNotExceeds(budgetPerItem: number, itemsCount: number): Promise<void> {
     await test.step('check cart total', async () => {
       const budget = budgetPerItem * itemsCount;
-      const cart = new CartPage(this.page);
-      await cart.open();
-      const { amount, raw } = await cart.readItemTotal();
+      await this.cart.open();
+      const { amount, raw } = await this.cart.readItemTotal();
       log.info(`cart ${raw} (${amount}), budget ${budget}`);
-      fs.mkdirSync(SCREENSHOTS, { recursive: true });
-      await this.page.screenshot({ path: path.join(SCREENSHOTS, 'cart.png') });
+      await this.page.screenshot({ path: this.screenshotPath('cart.png') });
       expect(
         amount,
         `item total on the cart page was "${raw}" (${amount}). Budget is ${budgetPerItem} × ${itemsCount} = ${budget}`,

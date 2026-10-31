@@ -1,38 +1,54 @@
 import { type Locator, type Page } from '@playwright/test';
+import { PAGE_READY_TIMEOUT, withoutQuery } from '../config/site_common';
 import { log } from '../utils/logger_common';
+import { gotoPage } from '../utils/page_common';
+
+// Every selector on this page. Change one here and the page object follows.
+const SEARCH_RESULTS_SELECTORS = {
+  card: 'a.search-card-item',
+  cardSalePrice: '[class*="price-sale"]',
+  pagination: '.comet-pagination',
+  nextPage: '.comet-pagination-next',
+  nextPageClickable: 'button, a',
+  nextPageDisabledClass: 'comet-pagination-disabled',
+};
 
 export class SearchResultsPage {
   private readonly cards: Locator;
+  private readonly pagination: Locator;
   private readonly nextPage: Locator;
 
   constructor(private readonly page: Page) {
-    this.cards = page.locator('a.search-card-item');
-    this.nextPage = page.locator('.comet-pagination-next');
+    this.cards = page.locator(SEARCH_RESULTS_SELECTORS.card);
+    this.pagination = page.locator(SEARCH_RESULTS_SELECTORS.pagination);
+    this.nextPage = page.locator(SEARCH_RESULTS_SELECTORS.nextPage);
   }
 
   async applyMaxPrice(maxPrice: number): Promise<void> {
-    const current = new URL(this.page.url());
-    const url = new URL(current.origin + current.pathname);
+    const url = new URL(withoutQuery(this.page.url()));
     url.searchParams.set('maxPrice', String(maxPrice));
-    await this.page.goto(url.toString(), { waitUntil: 'domcontentloaded' });
-    await this.cards.or(this.page.locator('.comet-pagination')).first().waitFor({ state: 'visible', timeout: 20_000 }).catch(() => undefined);
+    await gotoPage(this.page, url.toString());
+    await this.cards.or(this.pagination).first().waitFor({ state: 'visible', timeout: PAGE_READY_TIMEOUT }).catch(() => undefined);
     log.info(`price filter set, max ${maxPrice}`);
   }
 
   async offers(): Promise<{ url: string; priceText: string }[]> {
     await this.reveal();
-    const rows = await this.page.evaluate(() => {
-      return Array.from(document.querySelectorAll('a.search-card-item')).flatMap((card) => {
-        const href = card.getAttribute('href') ?? '';
-        if (!href.includes('/item/')) return [];
-        const priceText = (card.querySelector('[class*="price-sale"]')?.textContent ?? '').replace(/\s+/g, ' ').trim();
-        return [{ href, priceText }];
-      });
-    });
+    // The browser callback cannot see SEARCH_RESULTS_SELECTORS, so the values go in as arguments.
+    const rows = await this.page.evaluate(
+      ({ card, salePrice }) => {
+        return Array.from(document.querySelectorAll(card)).flatMap((node) => {
+          const href = node.getAttribute('href') ?? '';
+          if (!href.includes('/item/')) return [];
+          const priceText = (node.querySelector(salePrice)?.textContent ?? '').replace(/\s+/g, ' ').trim();
+          return [{ href, priceText }];
+        });
+      },
+      { card: SEARCH_RESULTS_SELECTORS.card, salePrice: SEARCH_RESULTS_SELECTORS.cardSalePrice },
+    );
 
     return rows.map((row) => {
-      const absolute = new URL(row.href, this.page.url());
-      return { url: `${absolute.origin}${absolute.pathname}`, priceText: row.priceText };
+      return { url: withoutQuery(row.href, this.page.url()), priceText: row.priceText };
     });
   }
 
@@ -49,14 +65,17 @@ export class SearchResultsPage {
     const next = this.nextPage.last();
     await next.scrollIntoViewIfNeeded().catch(() => undefined);
     if (!(await next.isVisible({ timeout: 8_000 }).catch(() => false))) return false;
-    const disabled = await next.evaluate((node) => node.classList.contains('comet-pagination-disabled'));
+    const disabled = await next.evaluate(
+      (node, disabledClass) => node.classList.contains(disabledClass),
+      SEARCH_RESULTS_SELECTORS.nextPageDisabledClass,
+    );
     if (disabled) return false;
 
     const before = await this.cards.first().getAttribute('href');
     log.info('clicking next results page');
-    await next.locator('button, a').first().click();
+    await next.locator(SEARCH_RESULTS_SELECTORS.nextPageClickable).first().click();
     await this.page.waitForLoadState('domcontentloaded');
-    await this.cards.first().waitFor({ state: 'visible', timeout: 20_000 });
+    await this.cards.first().waitFor({ state: 'visible', timeout: PAGE_READY_TIMEOUT });
 
     const after = await this.cards.first().getAttribute('href');
     return Boolean(after && after !== before);

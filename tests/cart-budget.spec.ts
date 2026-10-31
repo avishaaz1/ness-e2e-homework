@@ -1,11 +1,12 @@
 import { AliShop } from '../src/flows/aliexpress_shop_common';
 import { expect, test } from './fixtures_common';
-import { fiveItems, fewerThanFive, nextPage, noneFound } from '../src/utils/scenario_common';
+import { fiveItems, fewerThanFive, ITEM_LIMIT, nextPage, noneFound } from '../src/utils/scenario_common';
 
 // Every scenario searches AliExpress and keeps items at or under a max price.
 // The cart check belongs to the first test: the total must stay within max price × how many items were added.
 test.describe('Search items under a max price', () => {
-  test('find 5 shoes under 50, add them to the cart, and check the total', async ({ shop }) => {
+  
+  test(`find ${fiveItems.limit} ${fiveItems.query} under ${fiveItems.maxPrice}, add them to the cart, and check the total`, async ({ shop }) => {
     const urls = await shop.searchItemsByNameUnderPrice(fiveItems.query, fiveItems.maxPrice, fiveItems.limit);
 
     expect(
@@ -17,7 +18,7 @@ test.describe('Search items under a max price', () => {
     await shop.assertCartTotalNotExceeds(fiveItems.maxPrice, urls.length);
   });
 
-  test('find fewer than 5 items and return only those', async ({ shop }) => {
+  test(`find fewer than ${fewerThanFive.limit} items and return only those`, async ({ shop }) => {
     const urls = await shop.searchItemsByNameUnderPrice(
       fewerThanFive.query,
       fewerThanFive.maxPrice,
@@ -54,7 +55,7 @@ test.describe('Search items under a max price', () => {
     ).toBeGreaterThan(1);
     expect(
       urls.length,
-      `after ${shop.pagesOpened} pages, "${nextPage.query}" under ${nextPage.maxPrice} should return more than 5 items`,
-    ).toBeGreaterThan(5);
+      `after ${shop.pagesOpened} pages, "${nextPage.query}" under ${nextPage.maxPrice} should return more than ${ITEM_LIMIT} items`,
+    ).toBeGreaterThan(ITEM_LIMIT);
   });
 });
