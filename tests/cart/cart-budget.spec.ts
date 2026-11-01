@@ -1,8 +1,9 @@
-import { AliShop } from '../src/flows/aliexpress_shop_common';
-import { expect, test } from './fixtures_common';
-import { fiveItems, fewerThanFive, ITEM_LIMIT, nextPage, noneFound } from '../src/utils/scenario_common';
+import { AliShop } from '../../src/flows/aliexpress_shop_common';
+import { expect, test } from '../fixtures_common';
+import { fiveItems, fewerThanFive, nextPage, noneFound } from '../../src/utils/scenario_common';
 
 // Every scenario searches AliExpress and keeps items at or under a max price.
+// The inputs (query, max price, limit) come from data/cart_scenarios.json.
 // The cart check belongs to the first test: the total must stay within max price × how many items were added.
 test.describe('Search items under a max price', () => {
   
@@ -55,7 +56,7 @@ test.describe('Search items under a max price', () => {
     ).toBeGreaterThan(1);
     expect(
       urls.length,
-      `after ${shop.pagesOpened} pages, "${nextPage.query}" under ${nextPage.maxPrice} should return more than ${ITEM_LIMIT} items`,
-    ).toBeGreaterThan(ITEM_LIMIT);
+      `after ${shop.pagesOpened} pages, "${nextPage.query}" under ${nextPage.maxPrice} should return more than ${fiveItems.limit} items`,
+    ).toBeGreaterThan(fiveItems.limit);
   });
 });

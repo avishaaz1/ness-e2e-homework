@@ -1,5 +1,5 @@
-import { credentials, WRONG_PASSWORD } from '../src/config/credentials_common';
-import { expect, test } from './fixtures_common';
+import { credentials, WRONG_PASSWORD } from '../../src/config/credentials_common';
+import { expect, test } from '../fixtures_common';
 
 // The same login cases, on AliExpress itself. This file shows the attempt and the known blocker.
 //
@@ -11,7 +11,18 @@ import { expect, test } from './fixtures_common';
 // without a captcha in login.spec.ts, on Sauce Demo.
 test.describe('Login on AliExpress', () => {
   test('Continue stays off while the username field is empty', async ({ shop }) => {
-    await shop.openSignInForm();
+    try {
+      await shop.openSignInForm();
+    } catch (error) {
+      // Sometimes AliExpress puts its robot check over the home page, a few seconds after it loads.
+      // The sign in form cannot be reached then, and this test has nothing to check, so it is skipped
+      // with the reason. Any other failure is still a failure.
+      test.skip(
+        await shop.isCaptchaCoveringPage(),
+        'AliExpress showed its robot check over the home page, so the sign in form could not be opened. A person has to solve it.',
+      );
+      throw error;
+    }
 
     expect(await shop.isContinueEnabled(), 'Continue should be off before anything is typed').toBe(false);
   });

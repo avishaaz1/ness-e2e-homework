@@ -1,118 +1,55 @@
 # ReadMeAIBugs
 
-עברתי על הקוד בלי להריץ אותו. הוא לא בודק חיפוש: גם אם הדפדפן נפתח והכל רץ, בסוף אין שום בדיקה, ולכן הטסט לא יכול להיכשל על תוצאות.
+Code review of the sample test from the task: 
 
-הקוד המקורי:
+1. Line 2 - `from selenium import webdriver`
 
-```python
-from playwright.sync_api import sync_playwright
-from selenium import webdriver
-import time
+This import is unused. Remove it.
+_____________________________________________________
 
-def test_search_functionality():
-    browser = sync_playwright().start().chromium.launch()
-    page = browser.new_page()
-    page.goto("https://example.com")
+2. Line 6 - `browser = sync_playwright().start().chromium.launch()`
 
-    time.sleep(2)
+Playwright is started but never stopped, and `browser.close()` (line 21) runs only if every step before it passes. 
+If `fill` or `click` fails, the browser and the Playwright process stay open.
 
-    search_box = page.locator("#search")
-    search_box.fill("playwright testing")
+Make sure Playwright is always closed, even if the test fails.
+_____________________________________________________
 
-    page.locator(".button").click()
+3. Lines 10 and 17 - `time.sleep(2)` and `time.sleep(3)`
 
-    time.sleep(3)
+A sleep waits for time, not for a condition. 
 
-    results = page.locator(".result-item")
+Wait for the thing we need instead:
+- `fill` and `click` already wait for the element by themselves, so the first sleep is not needed.
+- After the click, use `expect(...).to_be_visible()`. It retries until the results show up, or fails.
+- If you need to wait for a page change or a request, use `wait_for_url` or another wait for element.
 
-    browser.close()
-```
+Also delete the `import time`.
+_____________________________________________________
 
-## 1. שתי ספריות מעורבבות, ואחת מהן לא בשימוש
+4. Line 12 - `search_box = page.locator("#search")`
 
-`from selenium import webdriver` לא קשור ל-Playwright. `webdriver` לא מופיע שוב בקובץ. נראה שהקוד הודבק משני מדריכים, אחד של Selenium ואחד של Playwright.
+`#search` is a generic id, it can change and it says nothing about the element.
 
-אם מישהו מנסה להתקין ולהריץ, הוא עלול להתקין `selenium` בלי צורך, או לחשוב שצריך driver של Chrome בשביל Selenium. השורה לא שוברת את הריצה לבד, אבל היא סימן שהקוד לא עקבי, והיא מיותרת.
+Find it by role: `page.get_by_role("textbox", name="Search")`.
+_____________________________________________________
 
-תיקון: למחוק את שורת ה-Selenium.
+5. Line 15 - `page.locator(".button").click()`
 
-```python
-from playwright.sync_api import sync_playwright, expect
-```
+`.button` is too general. With more than one match Playwright fails, and with one match it may be the wrong button (for example cookies).
 
-## 2. אין שום assertion, אז הטסט "עובר" גם כשכלום לא קרה
+Click by role and name, for example: `page.get_by_role("button", name="Search").click()`.
+_____________________________________________________
 
-```python
-results = page.locator(".result-item")
-```
+6. Line 19 - `results = page.locator(".result-item")`
 
-`locator` רק בונה מצביע לאלמנט. הוא לא מחפש אותו בדף ולא בודק שיש תוצאות. אין `expect`, אין בדיקה שהטקסט "playwright testing" מופיע, ואין בדיקה ש-`count()` גדול מ-0.
+Nothing is checked in this test. `page.locator` doesn't return results, and `results` is never asserted. The test has no purpose: it passes even if the search returns nothing.
 
-אם אין `#search`, ה-`fill` כן זורק והטסט נופל. אבל אם `.button` לוחץ על כפתור אחר והעמוד לא מציג תוצאות, השורה `results = ...` לא זורקת כלום. pytest יסמן הצלחה בלי שהחיפוש נבדק.
+Add assertions for what we expect to see: that the results are displayed, and that they match the search term.
+_____________________________________________________
 
-תיקון:
+7. Line 21 - `browser.close()`
 
-```python
-results = page.locator(".result-item")
-expect(results.first).to_be_visible()
-expect(page.locator("body")).to_contain_text("playwright testing")
-```
+Same as line 6. It is not reached when the test fails above it.
 
-## 3. `time.sleep` ולוקייטורים כלליים מדי
-
-```python
-time.sleep(2)
-search_box = page.locator("#search")
-...
-page.locator(".button").click()
-time.sleep(3)
-results = page.locator(".result-item")
-```
-
-`sleep` מחכה זמן קבוע. אם העמוד איטי יותר מ-2 שניות, `fill` רץ לפני שהשדה קיים ונופל. אם העמוד מהיר, מחכים סתם. זה גם לא אומר שהתוצאות באמת נטענו.
-
-`.button` תופס את הכפתור הראשון עם ה-class הזה. ב-Playwright, אם יש יותר מכפתור אחד, `click()` נכשל ב-strict mode. אם יש רק אחד, זה יכול להיות כפתור של cookies ולא כפתור החיפוש. `#search` ו-`.result-item` הם שמות גנריים שהאתר יכול לשנות, והם לא קשורים לתפקיד של האלמנט.
-
-בנוסף `https://example.com` הוא דף בלי תיבת חיפוש ובלי `#search`. גם עם המתנה נכונה אין שם מה למלא.
-
-תיקון: לחכות לאלמנט, וללחוץ לפי השם שלו.
-
-```python
-page.goto("https://the-real-site.example")
-search_box = page.get_by_role("textbox", name="Search")
-expect(search_box).to_be_visible()
-search_box.fill("playwright testing")
-page.get_by_role("button", name="Search").click()
-expect(page.locator("[data-testid='result-item']").first).to_be_visible()
-```
-
-## 4. הדפדפן לא נסגר אם משהו נופל באמצע, ו-Playwright עצמו לא נעצר
-
-```python
-browser = sync_playwright().start().chromium.launch()
-...
-browser.close()
-```
-
-`sync_playwright().start()` מחזיר אובייקט, והקוד לא שומר אותו ולא קורא ל-`stop()`. `browser.close()` נמצא רק בסוף המסלול המוצלח. אם `fill` או `click` זורקים, הדפדפן נשאר פתוח והתהליך של Playwright נשאר ברקע.
-
-תיקון: לעטוף ב-`with`. הוא קורא ל-`stop()` של Playwright וסוגר את הדפדפן גם כשיש exception, ולכן אין צורך ב-`try/finally`.
-
-```python
-def test_search_functionality():
-    with sync_playwright() as playwright:
-        browser = playwright.chromium.launch()
-        page = browser.new_page()
-        page.goto("https://the-real-site.example")
-        search_box = page.get_by_role("textbox", name="Search")
-        expect(search_box).to_be_visible()
-        search_box.fill("playwright testing")
-        page.get_by_role("button", name="Search").click()
-        expect(page.locator("[data-testid='result-item']").first).to_be_visible()
-```
-
-בפרויקט הזה אני לא כותב את זה ידנית. `@playwright/test` פותח וסוגר את הדפדפן והדף לכל טסט, והתיקון הזה מגיע מה-fixture.
-
-## מה הייתי משאיר
-
-`browser.new_page()` כן קיים ב-Playwright (הוא פותח context חדש מאחורי הקלעים), אז זו לא הבעיה. הבעיות הן הערבוב עם Selenium, חוסר הבדיקה, ההמתנה העיוורת, הלוקייטור `.button`, האתר הלא נכון, וחוסר הסגירה כשיש שגיאה.
+_____________________________________________________

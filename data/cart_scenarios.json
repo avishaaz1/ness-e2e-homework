@@ -1,0 +1,30 @@
+[
+  {
+    "id": "fiveItems",
+    "description": "The first results page already has more than the limit under this price. Used for the full flow: search, add to cart, check the total.",
+    "query": "shoes",
+    "maxPrice": 50,
+    "limit": 5
+  },
+  {
+    "id": "fewerThanFive",
+    "description": "A product id opens that one item, so fewer items than the limit come back.",
+    "query": "1005012394007227",
+    "maxPrice": 80,
+    "limit": 5
+  },
+  {
+    "id": "noneFound",
+    "description": "A max price of 0 matches nothing, so the result list is empty.",
+    "query": "shoes",
+    "maxPrice": 0,
+    "limit": 5
+  },
+  {
+    "id": "nextPage",
+    "description": "More than one results page holds this many items, so the run has to open Next.",
+    "query": "shoes",
+    "maxPrice": 50,
+    "limit": 80
+  }
+]

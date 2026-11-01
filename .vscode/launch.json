@@ -8,7 +8,7 @@
       "runtimeExecutable": "C:\\Program Files\\nodejs\\node.exe",
       "cwd": "${workspaceFolder}",
       "program": "${workspaceFolder}/scripts/run_with_report_common.mjs",
-      "args": ["tests/cart-budget.spec.ts", "--headed"],
+      "args": ["tests/cart/cart-budget.spec.ts", "--headed"],
       "console": "integratedTerminal",
       "autoAttachChildProcesses": true
     },
@@ -19,7 +19,7 @@
       "runtimeExecutable": "C:\\Program Files\\nodejs\\node.exe",
       "cwd": "${workspaceFolder}",
       "program": "${workspaceFolder}/scripts/run_with_report_common.mjs",
-      "args": ["tests/cart-budget.spec.ts", "--headed", "--timeout=0", "--workers=1"],
+      "args": ["tests/cart/cart-budget.spec.ts", "--headed", "--timeout=0", "--workers=1"],
       "env": {
         "PWDEBUG": "0"
       },

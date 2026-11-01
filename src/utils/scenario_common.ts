@@ -1,42 +1,46 @@
+import { readDataFile, readList, readText, readWholeNumber } from './data_common';
+
 export type Scenario = {
+  id: string;
+  description: string;
   query: string;
   maxPrice: number;
   limit: number;
 };
 
-// Shared values. Change one here and every scenario that uses it follows.
-export const SEARCH_QUERY = 'shoes';
-export const PRODUCT_ID_QUERY = '1005012394007227';
-export const MAX_PRICE = 50;
-export const HIGH_MAX_PRICE = 80;
-export const ZERO_MAX_PRICE = 0;
-export const ITEM_LIMIT = 5;
-export const LARGE_ITEM_LIMIT = 80;
+// The scenarios come from a JSON file in the data folder. Set SCENARIOS_FILE (in the environment
+// or the .env file) to run another file with the same ids, for example a smaller smoke set.
+export const SCENARIOS_FILE = process.env.SCENARIOS_FILE || 'cart_scenarios.json';
 
-// The first results page already has more than ITEM_LIMIT matches under this price.
-export const fiveItems: Scenario = {
-  query: SEARCH_QUERY,
-  maxPrice: MAX_PRICE,
-  limit: ITEM_LIMIT,
-};
+export function parseScenarios(data: unknown, source: string): Scenario[] {
+  const ids = new Set<string>();
+  return readList(data, source).map((row, index) => {
+    const where = `${source} row ${index + 1}`;
+    const id = readText(row, 'id', where);
+    if (ids.has(id)) throw new Error(`${where}: id "${id}" is used twice`);
+    ids.add(id);
+    return {
+      id,
+      description: readText(row, 'description', where),
+      query: readText(row, 'query', where),
+      // 0 is allowed: a max price of 0 must return an empty list.
+      maxPrice: readWholeNumber(row, 'maxPrice', where, 0),
+      limit: readWholeNumber(row, 'limit', where, 1),
+    };
+  });
+}
 
-// A product id opens that one item. A plain search fills the limit on page 1.
-export const fewerThanFive: Scenario = {
-  query: PRODUCT_ID_QUERY,
-  maxPrice: HIGH_MAX_PRICE,
-  limit: ITEM_LIMIT,
-};
+const scenarios = parseScenarios(readDataFile(SCENARIOS_FILE), SCENARIOS_FILE);
 
-// A max price of 0 matches nothing, so the result list is empty.
-export const noneFound: Scenario = {
-  query: SEARCH_QUERY,
-  maxPrice: ZERO_MAX_PRICE,
-  limit: ITEM_LIMIT,
-};
+export function scenario(id: string): Scenario {
+  const found = scenarios.find((item) => item.id === id);
+  if (!found) {
+    throw new Error(`Scenario "${id}" is not in ${SCENARIOS_FILE}. It has: ${scenarios.map((item) => item.id).join(', ')}`);
+  }
+  return found;
+}
 
-// More than one results page holds, so the run has to open Next.
-export const nextPage: Scenario = {
-  query: SEARCH_QUERY,
-  maxPrice: MAX_PRICE,
-  limit: LARGE_ITEM_LIMIT,
-};
+export const fiveItems = scenario('fiveItems');
+export const fewerThanFive = scenario('fewerThanFive');
+export const noneFound = scenario('noneFound');
+export const nextPage = scenario('nextPage');

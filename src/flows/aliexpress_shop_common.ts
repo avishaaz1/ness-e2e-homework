@@ -15,6 +15,8 @@ import type { LoginResult } from './login_result_common';
 
 const SCREENSHOTS = path.resolve('artifacts/screenshots');
 const MAX_SEARCH_PAGES = 4;
+// A short look for a slider on the home page. It is already there or it is not coming.
+const CAPTCHA_ON_HOME_TIMEOUT = 2_000;
 
 export class AliShop {
   pagesOpened = 0;
@@ -51,8 +53,7 @@ export class AliShop {
   // so tests can check a wrong password. Run it after open() so the home page is showing.
   async attemptLogin(username: string, password: string): Promise<LoginResult> {
     return test.step('try to log in', async () => {
-      this.closePopupsOnce();
-      await this.home.openSignIn();
+      await this.openSignInDialog();
       await this.loginPage.signIn(username, password);
       await this.loginPage.waitForCaptchaToBeSolved();
       await this.loginPage.waitForOutcome();
@@ -90,8 +91,21 @@ export class AliShop {
 
   // Opens the sign in form and stops, so a test can look at the empty form.
   async openSignInForm(): Promise<void> {
+    await this.openSignInDialog();
+  }
+
+  // AliExpress sometimes puts its slider over the home page before anyone clicks anything.
+  // Then the account menu cannot be reached, so a person has to drag it first, as after the password.
+  private async openSignInDialog(): Promise<void> {
     this.closePopupsOnce();
+    await this.loginPage.waitForCaptchaToBeSolved(CAPTCHA_ON_HOME_TIMEOUT);
     await this.home.openSignIn();
+  }
+
+  // True when AliExpress has put its captcha over the page. Then the account menu cannot be reached,
+  // and only a person can clear it.
+  async isCaptchaCoveringPage(): Promise<boolean> {
+    return this.loginPage.isCaptchaShown(CAPTCHA_ON_HOME_TIMEOUT);
   }
 
   async isContinueEnabled(): Promise<boolean> {
@@ -178,10 +192,19 @@ export class AliShop {
 
       for (let index = 0; index < urls.length; index++) {
         const url = urls[index];
+        // Each item opens in its own tab, so the search tab stays where it was. The tab shares
+        // the cookies of this test, so every item lands in the same cart.
+        const itemTab = await this.page.context().newPage();
         try {
-          await this.item.open(url);
-          const result = await this.item.addToCart();
-          await this.page.screenshot({ path: this.screenshotPath(`item-${index + 1}.png`) });
+          const item = new ItemPage(itemTab);
+          await item.open(url);
+          const result = await item.addToCart();
+          await itemTab.screenshot({ path: this.screenshotPath(`item-${index + 1}.png`) });
+          // The report shows, for every item, what the random choice picked or that none was needed.
+          test.info().annotations.push({
+            type: `item ${index + 1} options`,
+            description: result.choices.length > 0 ? result.choices.join(' | ') : 'the item asked for no choice',
+          });
           if (result.added) {
             added += 1;
             log.info(`added ${url}`);
@@ -192,6 +215,10 @@ export class AliShop {
           const message = error instanceof Error ? error.message : String(error);
           notAdded.push(`${url}: ${message}`);
           log.info(`failed ${url}: ${message}`);
+        } finally {
+          // Back to the search tab.
+          await itemTab.close();
+          await this.page.bringToFront();
         }
       }
 

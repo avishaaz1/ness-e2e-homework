@@ -15,6 +15,9 @@ const LOGIN_SELECTORS = {
   emailOptionName: 'init',
   // The slider captcha that AliExpress shows after the password is submitted.
   captchaFrame: '#baxia-dialog-content',
+  // What can cover the page when AliExpress checks for a robot, so that no click or hover reaches it.
+  // The slider has a mask layer. The "I'm not a robot" box (reCAPTCHA) is an iframe inside a middleware widget.
+  captchaOverlay: '.baxia-dialog-mask, .J_MIDDLEWARE_FRAME_WIDGET iframe',
   // Seen with the captcha message ("Please slide to verify"). The wrong password message was not checked.
   errorMessage: '[class*="error"]',
 };
@@ -33,6 +36,7 @@ export class LoginPage {
   private readonly passwordInput: Locator;
   private readonly emailSuggestionList: Locator;
   private readonly captchaFrame: Locator;
+  private readonly captchaOverlay: Locator;
   private readonly errorMessage: Locator;
 
   constructor(private readonly page: Page) {
@@ -42,6 +46,7 @@ export class LoginPage {
     this.passwordInput = page.locator(LOGIN_SELECTORS.passwordInput);
     this.emailSuggestionList = page.locator(LOGIN_SELECTORS.emailSuggestionList);
     this.captchaFrame = page.locator(LOGIN_SELECTORS.captchaFrame);
+    this.captchaOverlay = page.locator(LOGIN_SELECTORS.captchaOverlay);
     this.errorMessage = page.locator(LOGIN_SELECTORS.errorMessage);
   }
 
@@ -86,19 +91,24 @@ export class LoginPage {
   }
 
   // AliExpress may show a slider captcha. A person has to drag it, so the run waits here.
-  async waitForCaptchaToBeSolved(): Promise<void> {
-    const appeared = await this.captchaFrame
-      .first()
-      .waitFor({ state: 'visible', timeout: CAPTCHA_APPEAR_TIMEOUT })
-      .then(() => true)
-      .catch(() => false);
-    if (!appeared) return;
+  // It can cover the whole page, even before anyone signs in, so the flow also calls this first.
+  async waitForCaptchaToBeSolved(appearTimeout = CAPTCHA_APPEAR_TIMEOUT): Promise<void> {
+    if (!(await this.isCaptchaShown(appearTimeout))) return;
 
     log.info(`captcha shown. Drag the slider in the browser window within ${CAPTCHA_SOLVE_TIMEOUT / 1000} seconds`);
-    await expect(
-      this.captchaFrame.first(),
-      'the captcha slider was not solved in time. A person has to drag it in the browser window.',
-    ).toBeHidden({ timeout: CAPTCHA_SOLVE_TIMEOUT });
+    const message = 'the captcha slider was not solved in time. A person has to drag it in the browser window.';
+    await expect(this.captchaFrame.first(), message).toBeHidden({ timeout: CAPTCHA_SOLVE_TIMEOUT });
+    await expect(this.captchaOverlay.first(), message).toBeHidden({ timeout: CAPTCHA_SOLVE_TIMEOUT });
+  }
+
+  // True when the captcha, or the layer it puts over the page, shows up within the wait.
+  async isCaptchaShown(timeout = CAPTCHA_APPEAR_TIMEOUT): Promise<boolean> {
+    return this.captchaFrame
+      .or(this.captchaOverlay)
+      .first()
+      .waitFor({ state: 'visible', timeout })
+      .then(() => true)
+      .catch(() => false);
   }
 
   // Waits for the sign in attempt to end: the form closes (success) or an error shows (failure).

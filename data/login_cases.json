@@ -1,0 +1,38 @@
+{
+  "valid": {
+    "username": "standard_user",
+    "password": "secret_sauce"
+  },
+  "refused": [
+    {
+      "name": "a wrong password",
+      "username": "standard_user",
+      "password": "not-the-password-123",
+      "message": "Username and password do not match any user in this service"
+    },
+    {
+      "name": "an unknown username",
+      "username": "nobody_user",
+      "password": "secret_sauce",
+      "message": "Username and password do not match any user in this service"
+    },
+    {
+      "name": "a locked out user",
+      "username": "locked_out_user",
+      "password": "secret_sauce",
+      "message": "this user has been locked out"
+    },
+    {
+      "name": "an empty username",
+      "username": "",
+      "password": "secret_sauce",
+      "message": "Username is required"
+    },
+    {
+      "name": "an empty password",
+      "username": "standard_user",
+      "password": "",
+      "message": "Password is required"
+    }
+  ]
+}

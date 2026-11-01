@@ -6,7 +6,11 @@
   "scripts": {
     "test": "node scripts/run_with_report_common.mjs",
     "test:headed": "node scripts/run_with_report_common.mjs --headed",
-    "report:allure": "allure open reports/allure-report --host 127.0.0.1"
+    "test:cart": "node scripts/run_with_report_common.mjs tests/cart",
+    "test:login": "node scripts/run_with_report_common.mjs tests/login",
+    "test:data": "node scripts/run_with_report_common.mjs tests/data",
+    "report:open": "node scripts/open_last_report_common.mjs",
+    "report:sample": "node scripts/save_sample_report_common.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.56.1",

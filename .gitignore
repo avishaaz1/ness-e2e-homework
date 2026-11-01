@@ -3,6 +3,8 @@ test-results/
 playwright-report/
 reports/allure-report/
 reports/allure-results/
+# One report folder per local run. The example run that is kept in git lives in sample-report.
+reports/allureReport-*/
 reports/html/
 reports/junit/
 .chrome-profile/
