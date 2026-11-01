@@ -136,7 +136,7 @@ The four cart scenarios are rows in `data/cart_scenarios.json` (query, max price
 **Every run builds a new report.** It is named with the date and time the run started, for example:
 
 ```
-reports/allureReport-2026-11-01_23-03-23/index.html
+reports/allureReport-2026-11-01_23-32-42/index.html
 ```
 
 Earlier reports stay in the `reports` folder, so you can compare runs. Delete old folders when you do not need them. The `reports` folder is created on your machine and is not in git.
@@ -159,7 +159,7 @@ Each report is one HTML file with everything inside, a few MB. It needs no serve
 
 The same screenshots are also saved as files in `artifacts/screenshots` (`item-1.png`, `item-2.png`, ..., `cart.png`). The next run overwrites them, but the report keeps its own copy. This folder is not in git.
 
-**Example report.** `sample-report/` holds the report of one complete run, so you can see what a report looks like without running anything. Open `sample-report/allureReport-2026-11-01_23-03-23/index.html` in a browser. In that run 19 tests passed, none failed, and 3 were skipped. Open the cart test to see the steps "item 1" to "item 5", each with its screenshot, and the cart screenshot. All 3 skips are on AliExpress login, where the captcha needs a person (see [Login tests](#login-tests)): two need a test account that was turned off with `ALI_LOGIN=off`, and one could not open the sign in form because the robot check covered the page.
+**Example report.** `sample-report/` holds the report of one complete run, so you can see what a report looks like without running anything. Open `sample-report/allureReport-2026-11-01_23-32-42/index.html` in a browser. In that run 19 tests passed, none failed, and 3 were skipped. Open the cart test to see the steps "item 1" to "item 5", each with its screenshot, and the cart screenshot. All 3 skips are on AliExpress login, where the captcha needs a person (see [Login tests](#login-tests)): two need a test account that was turned off with `ALI_LOGIN=off`, and one could not open the sign in form because the robot check covered the page.
 
 To replace the example with a new run, in PowerShell:
 
@@ -259,15 +259,32 @@ That launch config expects Node at `C:\Program Files\nodejs\node.exe`. If Node i
 
 ## Architecture
 
-The tests are built in layers. Each layer only talks to the one below it:
+The project is built in layers. Each layer only talks to the one below it, so a change in one place does not break the others:
 
-1. **Spec** (`tests/cart`, `tests/login`, `tests/data`) says what to check. It has no selectors and no waits.
-2. **Fixture** (`tests/fixtures_common.ts`) builds the flow and opens the site before the test body runs. It is the Playwright way of a "before" step.
-3. **Flow** (`AliShop`, `SauceDemo`) holds the user actions, such as "search under a price" or "log in". It uses `test.step`, so each action is one line in the report.
-4. **Page object** (`src/pages/*_pom.ts`) owns the locators of one page and the small actions on it. Every selector sits in one named constant at the top of its file, so a site change is fixed in one place.
-5. **Config and utils** (`src/config`, `src/utils`) hold the addresses, timeouts, scenarios (the data), price parsing, and the log.
+```
+Spec           tests/cart, tests/login, tests/data       what to check
+  |
+Fixture        tests/fixtures_common.ts                  builds the shop, opens the site
+  |
+Shop           AliShop, SauceDemo                        one object for the test to talk to
+  |
+Flows          login, search, cart                       the user actions, one file per area
+  |
+Page objects   src/pages/*_pom.ts                        the locators of one page each
+  |
+Config, utils  src/config, src/utils                     addresses, timeouts, data, price, log
+```
+
+1. **Spec** says what to check. It has no selectors and no waits, so a test reads like the scenario.
+2. **Fixture** builds the shop and opens the site before the test body runs. It is the Playwright way of a "before" step. A test gets only the fixtures it asks for, so a Sauce Demo test never opens AliExpress.
+3. **Shop** (`AliShop`) is the one object a test talks to. It does no work itself. It passes each call to the right flow, so the four task functions stay in one place for the test.
+4. **Flows** hold the user actions, such as "search under a price", "add the items to the cart" or "log in". There is one flow per area (login, search, cart), so each file stays small and has one job. A flow uses `test.step`, so each action is one line in the report.
+5. **Page objects** own the locators of one page and the small actions on it. Every selector sits in one named constant at the top of its file, so a site change is fixed in one place.
+6. **Config and utils** hold the addresses, timeouts, reading of the data files, price parsing, the screenshots, and the log.
 
 Test data is separate from test code. The cart scenarios and the login cases are JSON files in `data` (see Test data). A new case is a new row.
+
+**File names.** Every file has a name of its own and ends with what it is: `_pom` for a page object, `_common` for everything else (flows, config, utils, the fixture). So `home_pom.ts` is a page, and `aliexpress_cart_common.ts` is a flow, and two files never share a name.
 
 ## Why every test gets a new page
 
@@ -279,38 +296,85 @@ Playwright opens a new browser context for every test, and the fixture opens the
 
 The price is time: every test loads the site again. The tests run one at a time (`workers: 1`), so the site sees one visitor and the run is easy to watch.
 
-## How the code is organized
+## What each file does
 
-```
-src/pages/*_pom.ts                     page objects and their locators
-src/flows/aliexpress_shop_common.ts    the shop actions
-src/config/site_common.ts              site addresses
-src/config/browser_common.ts           window size and locale
-data/cart_scenarios.json               the cart scenarios (query, max price, limit)
-data/login_cases.json                  the Sauce Demo accounts and refused login cases
-src/utils/data_common.ts               reads and checks the JSON files
-src/utils/scenario_common.ts           turns the scenario rows into typed scenarios
-src/utils/login_cases_common.ts        turns the login rows into typed cases
-src/utils/random_common.ts             random pick for item options
-src/utils/price_common.ts              price parsing
-src/utils/logger_common.ts             console log
-src/config/credentials_common.ts       AliExpress account, read from .env
-tests/cart/cart-budget.spec.ts         the cart tests
-tests/login/login.spec.ts              the login tests (Sauce Demo)
-tests/login/login-aliexpress.spec.ts   the login tests on AliExpress (captcha needs a person)
-tests/data/data-files.spec.ts          checks the data files (no site needed)
-src/flows/sauce_demo_common.ts         the Sauce Demo sign in actions
-tests/fixtures_common.ts               builds the shop (shop or sauce) before the test
-```
+**Tests** (`tests`)
 
-`AliShop` methods:
+| File | What it does |
+| --- | --- |
+| `tests/cart/cart-budget.spec.ts` | The four cart scenarios: five items, fewer than five, none found, and the next page. |
+| `tests/login/login.spec.ts` | The login tests on Sauce Demo: a valid login, the refused cases, and a direct address without a login. |
+| `tests/login/login-aliexpress.spec.ts` | The same idea on AliExpress, to show the captcha blocker. It needs a person for the slider. |
+| `tests/data/data-files.spec.ts` | Checks the JSON files and the random pick. It needs no browser and no internet. |
+| `tests/fixtures_common.ts` | Builds the shop (`shop` for AliExpress, `sauce` for Sauce Demo) and opens its site before the test. |
 
-- `open()` — open AliExpress. The fixture calls this before the test.
-- `searchItemsByNameUnderPrice(query, maxPrice, limit = 5)`
-- `addItemsToCart(urls)`
-- `assertCartTotalNotExceeds(budgetPerItem, itemsCount)`
+**Flows** (`src/flows`)
 
-Search finds the result cards with XPath (an `a` whose class has the word `search-card-item`) and reads the price from the same card. The sale price is the first ILS amount on the card. If the current page does not have enough items under the price, the test clicks Next until it reaches the limit or the pages run out. A product id opens that item directly, so the result is that one URL. A max price of 0 returns an empty list.
+| File | What it does |
+| --- | --- |
+| `aliexpress_shop_common.ts` | `AliShop`. The one object the cart and login tests use. It passes each call to the flow below. |
+| `aliexpress_login_common.ts` | `AliLoginFlow`. Sign in, sign out, the captcha check, and closing the popups that cover the account menu. |
+| `aliexpress_search_common.ts` | `AliSearchFlow`. `searchItemsByNameUnderPrice`: the search, the price filter, and the move to the next page. |
+| `aliexpress_cart_common.ts` | `AliCartFlow`. `addItemsToCart` (one tab per item, random options, a screenshot per item) and `assertCartTotalNotExceeds`. |
+| `sauce_demo_common.ts` | `SauceDemo`. The sign in actions on Sauce Demo. |
+| `login_result_common.ts` | The result of a login attempt (signed in or not, and the error text). |
+
+**Page objects** (`src/pages`)
+
+| File | What it does |
+| --- | --- |
+| `home_pom.ts` | The AliExpress home page: the search box, and the account menu with sign in and sign out. |
+| `search_results_pom.ts` | The results page: the cards (found with XPath), the price on each card, the max price filter, and Next. |
+| `item_pom.ts` | An item page: the price, the options (size, color) with a random pick, and Add to cart. |
+| `cart_pom.ts` | The cart page: open it and read the item total. |
+| `login_pom.ts` | The AliExpress sign in dialog (both versions) and the captcha. |
+| `popups_pom.ts` | Closes the sale popup and the notification banner when they appear. |
+| `sauce_login_pom.ts` | The Sauce Demo login page. |
+| `sauce_inventory_pom.ts` | The Sauce Demo shop page, shown after a login. |
+
+**Config** (`src/config`)
+
+| File | What it does |
+| --- | --- |
+| `site_common.ts` | The site addresses, and the page ready timeout. |
+| `browser_common.ts` | The window size, the locale, and the element timeout. |
+| `credentials_common.ts` | The AliExpress test account, read from `.env`. Empty when there is no account. |
+
+**Utils** (`src/utils`)
+
+| File | What it does |
+| --- | --- |
+| `data_common.ts` | Reads a JSON file from `data` and checks its values (numbers, text, lists). A broken row stops the run with the file and row in the message. |
+| `scenario_common.ts` | Turns the cart rows into typed scenarios. A test asks for one by its `id`. |
+| `login_cases_common.ts` | Turns the login rows into typed cases. |
+| `random_common.ts` | The random pick for the item options. |
+| `price_common.ts` | Reads a price from the text of a card: the sale price is the first ILS amount. |
+| `page_common.ts` | Opens a page with one wait rule for the whole suite. |
+| `screenshot_common.ts` | Saves a screenshot in `artifacts/screenshots` and attaches it to the report. |
+| `logger_common.ts` | The `[e2e]` lines in the console. |
+
+**Data** (`data`)
+
+| File | What it does |
+| --- | --- |
+| `cart_scenarios.json` | The cart scenarios: `id`, `description`, `query`, `maxPrice`, `limit`. |
+| `login_cases.json` | The Sauce Demo account that logs in, and the refused cases. |
+
+**Scripts and config at the root**
+
+| File | What it does |
+| --- | --- |
+| `scripts/run_with_report_common.mjs` | Runs the tests, then builds the dated report. This is what `npm test` calls. |
+| `scripts/open_last_report_common.mjs` | Opens the report of the latest run (`npm run report:open`). |
+| `scripts/save_sample_report_common.mjs` | Copies the latest report to `sample-report/` (`npm run report:sample`). |
+| `playwright.config.ts` | Playwright settings: the test folder, the browser, one worker, the timeouts, the Allure reporter. |
+| `allurerc.mjs` | Allure settings: one HTML file for each report. |
+
+**What the three AliExpress flows do**
+
+- **Search** finds the result cards with XPath (an `a` whose class has the word `search-card-item`) and reads the price from the same card. The sale price is the first ILS amount on the card. If the current page does not have enough items under the price, the test clicks Next until it reaches the limit or the pages run out. A product id opens that item directly, so the result is that one URL. A max price of 0 returns an empty list.
+- **Cart** opens each item in its own tab, picks a random option in each group when the item asks for one, clicks Add to cart, takes a screenshot, and closes the tab, so the run is back on the search tab. Then it opens the cart, reads the item total, and checks it against `budget per item × number of items`.
+- **Login** opens the sign in dialog, types the account, waits for a person if a slider shows up, and reports whether the visitor is signed in.
 
 The Next test opens the results address directly. Opening the homepage first hides the Next control.
 
