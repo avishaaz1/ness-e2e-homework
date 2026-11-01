@@ -5,10 +5,13 @@ import { resultsUrl, withoutQuery } from '../config/site_common';
 import { CartPage } from '../pages/cart_pom';
 import { HomePage } from '../pages/home_pom';
 import { ItemPage } from '../pages/item_pom';
+import { LoginPage } from '../pages/login_pom';
+import { Popups } from '../pages/popups_pom';
 import { SearchResultsPage } from '../pages/search_results_pom';
 import { log } from '../utils/logger_common';
 import { gotoPage } from '../utils/page_common';
 import { salePrice } from '../utils/price_common';
+import type { LoginResult } from './login_result_common';
 
 const SCREENSHOTS = path.resolve('artifacts/screenshots');
 const MAX_SEARCH_PAGES = 4;
@@ -16,20 +19,87 @@ const MAX_SEARCH_PAGES = 4;
 export class AliShop {
   pagesOpened = 0;
 
+  private popupsHandled = false;
+
   private readonly home: HomePage;
   private readonly results: SearchResultsPage;
   private readonly item: ItemPage;
   private readonly cart: CartPage;
+  private readonly loginPage: LoginPage;
 
   constructor(private readonly page: Page) {
     this.home = new HomePage(page);
     this.results = new SearchResultsPage(page);
     this.item = new ItemPage(page);
     this.cart = new CartPage(page);
+    this.loginPage = new LoginPage(page);
+  }
+
+  // The popups cover the account menu, so the login steps close them. The cart tests do not
+  // need this, and they ran without it, so it is only turned on when a login starts.
+  private closePopupsOnce(): void {
+    if (this.popupsHandled) return;
+    this.popupsHandled = true;
+    new Popups(this.page).closeWhenTheyAppear();
   }
 
   async open(): Promise<void> {
     await this.home.open();
+  }
+
+  // Tries to sign in and reports what happened. It never fails on a refused login,
+  // so tests can check a wrong password. Run it after open() so the home page is showing.
+  async attemptLogin(username: string, password: string): Promise<LoginResult> {
+    return test.step('try to log in', async () => {
+      this.closePopupsOnce();
+      await this.home.openSignIn();
+      await this.loginPage.signIn(username, password);
+      await this.loginPage.waitForCaptchaToBeSolved();
+      await this.loginPage.waitForOutcome();
+
+      await this.page.screenshot({ path: this.screenshotPath('login.png') });
+      const error = await this.loginPage.errorText();
+      // Signed in needs both signs: the form is gone and the account menu offers Sign out.
+      const signedIn = !(await this.loginPage.isFormOpen()) && (await this.home.isSignedIn());
+      log.info(`login for ${username}: ${signedIn ? 'signed in' : `refused (${error || 'no error shown'})`}`);
+      return { signedIn, error };
+    });
+  }
+
+  // Signs in and fails the test if it did not work.
+  async login(username: string, password: string): Promise<void> {
+    await test.step('log in', async () => {
+      const { signedIn, error } = await this.attemptLogin(username, password);
+      expect(
+        signedIn,
+        `could not sign in as "${username}". Page errors: ${error || 'none shown'}`,
+      ).toBe(true);
+    });
+  }
+
+  async logout(): Promise<void> {
+    await test.step('log out', async () => {
+      await this.home.signOut();
+      expect(await this.home.isSignedOut(), 'after Sign out the account menu should offer Sign in again').toBe(true);
+    });
+  }
+
+  async isSignedIn(): Promise<boolean> {
+    return this.home.isSignedIn();
+  }
+
+  // Opens the sign in form and stops, so a test can look at the empty form.
+  async openSignInForm(): Promise<void> {
+    this.closePopupsOnce();
+    await this.home.openSignIn();
+  }
+
+  async isContinueEnabled(): Promise<boolean> {
+    return this.loginPage.isContinueEnabled();
+  }
+
+  async reload(): Promise<void> {
+    await this.page.reload({ waitUntil: 'domcontentloaded' });
   }
 
   // Up to `limit` item URLs whose sale price is <= maxPrice. Fewer, including 0, is a valid result.

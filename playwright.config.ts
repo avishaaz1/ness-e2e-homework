@@ -1,6 +1,10 @@
+import fs from 'fs';
 import { defineConfig } from '@playwright/test';
 import { LOCALE, VIEWPORT_HEIGHT, VIEWPORT_WIDTH } from './src/config/browser_common';
 import { site } from './src/config/site_common';
+
+// Values already set in the terminal win over the .env file.
+if (fs.existsSync('.env')) process.loadEnvFile('.env');
 
 const headed = process.env.HEADLESS !== '1';
 

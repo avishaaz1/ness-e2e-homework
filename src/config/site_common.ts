@@ -3,6 +3,12 @@ export const site = {
   CART: 'https://www.aliexpress.com/p/shoppingcart/index.html',
 };
 
+// Sauce Demo is a practice shop made for automation. The login tests run on it.
+export const sauceSite = {
+  HOME: 'https://www.saucedemo.com/',
+  INVENTORY: 'https://www.saucedemo.com/inventory.html',
+};
+
 // How long a page may take to show its key element.
 export const PAGE_READY_TIMEOUT = 20_000;
 

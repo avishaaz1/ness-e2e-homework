@@ -1,6 +1,6 @@
 # ReadMeAIBugs
 
-עברתי על הקוד סטטית, בלי להריץ אותו. הוא לא בודק חיפוש, גם אם הדפדפן נפתח.
+עברתי על הקוד בלי להריץ אותו. הוא לא בודק חיפוש: גם אם הדפדפן נפתח והכל רץ, בסוף אין שום בדיקה, ולכן הטסט לא יכול להיכשל על תוצאות.
 
 הקוד המקורי:
 
@@ -96,25 +96,22 @@ browser.close()
 
 `sync_playwright().start()` מחזיר אובייקט, והקוד לא שומר אותו ולא קורא ל-`stop()`. `browser.close()` נמצא רק בסוף המסלול המוצלח. אם `fill` או `click` זורקים, הדפדפן נשאר פתוח והתהליך של Playwright נשאר ברקע.
 
-תיקון: `with`, ו-`try/finally` לא חובה כשה-`with` עוטף את הכל.
+תיקון: לעטוף ב-`with`. הוא קורא ל-`stop()` של Playwright וסוגר את הדפדפן גם כשיש exception, ולכן אין צורך ב-`try/finally`.
 
 ```python
 def test_search_functionality():
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch()
         page = browser.new_page()
-        try:
-            page.goto("https://the-real-site.example")
-            search_box = page.get_by_role("textbox", name="Search")
-            expect(search_box).to_be_visible()
-            search_box.fill("playwright testing")
-            page.get_by_role("button", name="Search").click()
-            expect(page.locator("[data-testid='result-item']").first).to_be_visible()
-        finally:
-            browser.close()
+        page.goto("https://the-real-site.example")
+        search_box = page.get_by_role("textbox", name="Search")
+        expect(search_box).to_be_visible()
+        search_box.fill("playwright testing")
+        page.get_by_role("button", name="Search").click()
+        expect(page.locator("[data-testid='result-item']").first).to_be_visible()
 ```
 
-ה-`with` קורא ל-`stop()` גם כשיש exception.
+בפרויקט הזה אני לא כותב את זה ידנית. `@playwright/test` פותח וסוגר את הדפדפן והדף לכל טסט, והתיקון הזה מגיע מה-fixture.
 
 ## מה הייתי משאיר
 
