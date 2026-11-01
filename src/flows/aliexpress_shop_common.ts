@@ -192,34 +192,37 @@ export class AliShop {
 
       for (let index = 0; index < urls.length; index++) {
         const url = urls[index];
-        // Each item opens in its own tab, so the search tab stays where it was. The tab shares
-        // the cookies of this test, so every item lands in the same cart.
-        const itemTab = await this.page.context().newPage();
-        try {
-          const item = new ItemPage(itemTab);
-          await item.open(url);
-          const result = await item.addToCart();
-          await itemTab.screenshot({ path: this.screenshotPath(`item-${index + 1}.png`) });
-          // The report shows, for every item, what the random choice picked or that none was needed.
-          test.info().annotations.push({
-            type: `item ${index + 1} options`,
-            description: result.choices.length > 0 ? result.choices.join(' | ') : 'the item asked for no choice',
-          });
-          if (result.added) {
-            added += 1;
-            log.info(`added ${url}`);
-          } else {
-            notAdded.push(`${url}: ${result.detail}`);
+        const number = index + 1;
+        // One step per item, so the report shows the item, its link and its screenshot together.
+        await test.step(`item ${number}: ${url}`, async () => {
+          // Each item opens in its own tab, so the search tab stays where it was. The tab shares
+          // the cookies of this test, so every item lands in the same cart.
+          const itemTab = await this.page.context().newPage();
+          try {
+            const item = new ItemPage(itemTab);
+            await item.open(url);
+            const result = await item.addToCart();
+            // The report shows, for every item, what the random choice picked or that none was needed.
+            const choices = result.choices.length > 0 ? result.choices.join(' | ') : 'the item asked for no choice';
+            test.info().annotations.push({ type: `item ${number} options`, description: choices });
+            await this.saveScreenshot(itemTab, `item-${number}.png`, `item ${number} ${result.added ? 'added' : 'NOT added'}`);
+            if (result.added) {
+              added += 1;
+              log.info(`added item ${number} (${choices}) ${url}`);
+            } else {
+              notAdded.push(`${url}: ${result.detail}`);
+              log.info(`item ${number} not added: ${result.detail}`);
+            }
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            notAdded.push(`${url}: ${message}`);
+            log.info(`failed item ${number} ${url}: ${message}`);
+          } finally {
+            // Back to the search tab.
+            await itemTab.close();
+            await this.page.bringToFront();
           }
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          notAdded.push(`${url}: ${message}`);
-          log.info(`failed ${url}: ${message}`);
-        } finally {
-          // Back to the search tab.
-          await itemTab.close();
-          await this.page.bringToFront();
-        }
+        });
       }
 
       expect(
@@ -233,6 +236,13 @@ export class AliShop {
   private screenshotPath(name: string): string {
     fs.mkdirSync(SCREENSHOTS, { recursive: true });
     return path.join(SCREENSHOTS, name);
+  }
+
+  // Saves the screenshot in artifacts/screenshots and attaches the same picture to the report.
+  private async saveScreenshot(page: Page, fileName: string, label: string): Promise<void> {
+    const file = this.screenshotPath(fileName);
+    await page.screenshot({ path: file });
+    await test.info().attach(label, { path: file, contentType: 'image/png' });
   }
 
   private expectKeptPricesAtOrUnder(query: string, maxPrice: number, items: { url: string; price: number }[]): void {
@@ -251,7 +261,7 @@ export class AliShop {
       await this.cart.open();
       const { amount, raw } = await this.cart.readItemTotal();
       log.info(`cart ${raw} (${amount}), budget ${budget}`);
-      await this.page.screenshot({ path: this.screenshotPath('cart.png') });
+      await this.saveScreenshot(this.page, 'cart.png', 'cart');
       expect(
         amount,
         `item total on the cart page was "${raw}" (${amount}). Budget is ${budgetPerItem} × ${itemsCount} = ${budget}`,

@@ -4,7 +4,25 @@ Playwright + TypeScript test for AliExpress.
 
 The test opens AliExpress, searches for a product, keeps items under a max price, adds them to the cart, and checks that the item total stays within the budget.
 
-## What you need
+## Quick start
+
+Already have Node.js 20 or newer, Git and Google Chrome? Open PowerShell and run:
+
+```powershell
+git clone https://github.com/avishaaz1/ness-e2e-homework.git
+cd ness-e2e-homework
+npm install
+npm test
+```
+
+That is all. `npm test` opens Chrome and runs the tests one by one. When it ends, the report of this run opens in your browser. A full run takes about 10 minutes.
+
+New to this? The next section installs the tools step by step. Something went wrong? Go to [Troubleshooting](#troubleshooting).
+
+## Install the tools (first time only)
+
+<details>
+<summary>Step by step: Node.js, Git, Chrome and the project</summary>
 
 A Windows PC with internet. The steps below install everything else.
 
@@ -74,27 +92,37 @@ npm install
 
 `npm install` can take a minute. Wait until the prompt comes back. If you already have the folder, skip the `git clone` line, `cd` into that folder, and run `npm install`.
 
-## Run the test
+</details>
 
-```bash
+## Run the tests
+
+```powershell
 npm test
 ```
 
-Playwright opens Chrome and you can watch the run. Each run starts in a fresh window, so the cart and history are empty. The cart tests stay a guest. No login is required for them.
+Chrome opens and you can watch the run. Each test starts in a fresh window, so the cart and history are empty. The cart tests stay a guest, so no login is needed. One test can take 1 to 3 minutes, so a full run is about 10 minutes.
 
-When the tests finish, pass or fail, the report of this run opens in the browser. The terminal prints its path, for example `reports/allureReport-2026-11-01_20-15-30/index.html`. The report shows which tests passed, failed, or were skipped, with the steps and a screenshot of each failure. The terminal can be closed.
+The tests are in three folders. If you changed one area, run only that area. Every command builds its own report.
 
-`npm test` runs every test in `tests`. The report lists each one from that run.
+| Command | What it runs | Needs the internet |
+| --- | --- | --- |
+| `npm test` | all the tests | yes |
+| `npm run test:cart` | search under a price, add to cart, cart total, paging (AliExpress) | yes |
+| `npm run test:login` | login on Sauce Demo, and the AliExpress login tests | yes |
+| `npm run test:data` | the JSON data files and their checks (takes a few seconds) | no |
 
-The tests are in three folders, so a change in one area needs only that area's tests. Each command builds its own dated report:
-
-| Command | Folder | What it covers | Needs the internet |
-| --- | --- | --- | --- |
-| `npm run test:cart` | `tests/cart` | search under a price, add to cart, cart total, paging (AliExpress) | yes |
-| `npm run test:login` | `tests/login` | login on Sauce Demo, and the AliExpress login tests | yes |
-| `npm run test:data` | `tests/data` | the JSON data files and their checks | no |
+`test:data` is the quickest way to check that the install worked.
 
 To run one test file, or one test by its title, call Playwright directly: `npx playwright test tests/login/login.spec.ts`, or `npx playwright test -g "locked out"`. That does not build a report.
+
+To hide the browser window, in PowerShell:
+
+```powershell
+$env:HEADLESS = "1"
+npm test
+```
+
+AliExpress is more likely to block a hidden browser, so run with the window visible when you can.
 
 The four cart scenarios are rows in `data/cart_scenarios.json` (query, max price, limit):
 
@@ -103,12 +131,85 @@ The four cart scenarios are rows in `data/cart_scenarios.json` (query, max price
 - `noneFound` — max price 0, so the result list is empty
 - `nextPage` — shoes under 50, more than one page holds, so the run clicks Next
 
-To hide the browser window, in PowerShell:
+## The report
+
+**Every run builds a new report.** It is named with the date and time the run started, for example:
+
+```
+reports/allureReport-2026-11-01_23-03-23/index.html
+```
+
+Earlier reports stay in the `reports` folder, so you can compare runs. Delete old folders when you do not need them. The `reports` folder is created on your machine and is not in git.
+
+Each report is one HTML file with everything inside, a few MB. It needs no server.
+
+**How to open it:**
+
+- `npm test` opens it for you when the run ends. The terminal also prints its path.
+- To open the report of the latest run again: `npm run report:open`.
+- Or double click `index.html` in File Explorer. It must open in a browser. If you open it in the editor, you see HTML text instead of the report.
+
+**What the report shows:**
+
+- The overview: how many tests passed, failed, or were skipped.
+- The list of tests. Open one to see its steps, such as "search", "item 1: <link>" and "check cart total", with the time of each step.
+- For every item that is added to the cart: a screenshot of the item page, attached to the step of that item, and a line with what the random choice picked (size or color), or that the item asked for no choice. The cart check has a screenshot of the cart.
+- For a failed test: the error, and a screenshot of the page at the failure.
+- For a skipped test: the reason.
+
+The same screenshots are also saved as files in `artifacts/screenshots` (`item-1.png`, `item-2.png`, ..., `cart.png`). The next run overwrites them, but the report keeps its own copy. This folder is not in git.
+
+**Example report.** `sample-report/` holds the report of one complete run, so you can see what a report looks like without running anything. Open `sample-report/allureReport-2026-11-01_23-03-23/index.html` in a browser. In that run 19 tests passed, none failed, and 3 were skipped. Open the cart test to see the steps "item 1" to "item 5", each with its screenshot, and the cart screenshot. All 3 skips are on AliExpress login, where the captcha needs a person (see [Login tests](#login-tests)): two need a test account that was turned off with `ALI_LOGIN=off`, and one could not open the sign in form because the robot check covered the page.
+
+To replace the example with a new run, in PowerShell:
 
 ```powershell
-$env:HEADLESS = "1"
+$env:ALI_LOGIN = "off"
 npm test
+npm run report:sample
 ```
+
+`report:sample` copies the report of the latest run into `sample-report/`, and removes the old example.
+
+Two switches for `npm test`, in PowerShell: `$env:REPORT_OPEN = "0"` builds the report without opening it, and `$env:TRACE = "on"` keeps the Playwright traces of failed tests, which makes the report much bigger.
+
+## Troubleshooting
+
+**`node`, `npm` or `git` is "not recognized".**
+The program is not installed, or the PowerShell window is older than the install. Close PowerShell, open a new one, and try again. If it is still missing, install it with the steps in [Install the tools](#install-the-tools-first-time-only).
+
+**`npm` says "running scripts is disabled on this system".**
+PowerShell blocks `npm`. Run this once, then open a new PowerShell:
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+```
+
+**Chrome does not open, or Playwright says it cannot find Chrome.**
+The test uses the normal Google Chrome app. Install Chrome (see [Install the tools](#install-the-tools-first-time-only)). If Chrome is installed and the error stays, run `npx playwright install chrome`.
+
+**`npm install` fails or hangs.**
+Check the internet connection, and that `node -v` shows 20 or higher. Then delete the `node_modules` folder and run `npm install` again.
+
+**A slider or "We need to check if you are a robot" appears.**
+That is the AliExpress bot protection. Drag the slider yourself in the Chrome window. The run waits up to 2 minutes. If it keeps coming back, wait a while, or run from another network, and run with the window visible (no `HEADLESS`). The tests do not try to get around it.
+
+**A cart test fails with "found fewer than 5", or finds no items.**
+AliExpress is a real shop, so prices and stock change. Run the test again. Check that you run from Israel, or from a place sent to `he.aliexpress.com`, because the price is read in ILS (see [Assumptions and limits](#assumptions-and-limits)).
+
+**The test seems stuck.**
+It is probably waiting. One test can take 1 to 3 minutes, and a slider waits for you for up to 2 minutes. Look at the Chrome window.
+
+**The report did not open, or it is not the report I expected.**
+Run `npm run report:open`, or open `reports/allureReport-<date>_<time>/index.html` in a browser. A run that you stop with `Ctrl+C` builds no report. Run it again and let it finish.
+
+**The report is only text.**
+You opened `index.html` in the editor. Open the file in Chrome instead (double click it in File Explorer).
+
+**The AliExpress login tests are "skipped".**
+This is expected. They need a test account and a person for the captcha (see [Login tests](#login-tests)). The login method is tested in full on Sauce Demo.
+
+Still stuck? Run `npm run test:data`. If it passes, the install is fine and the problem is the site or the network. If it fails, the install is not complete, so check the steps above.
 
 ## Login tests
 
@@ -149,33 +250,6 @@ The inputs are JSON files in the `data` folder, not code. JSON can hold numbers,
 A broken file stops the run at the start with the file name and the row in the message. For example, a negative max price or a missing query. `tests/data/data-files.spec.ts` checks this. It needs no browser and no internet, so it runs in a second.
 
 To run another set of scenarios, put a file with the same ids in `data` and name it in `SCENARIOS_FILE` (in the environment or in `.env`). `.env.example` shows the line.
-
-## Reports and screenshots
-
-These folders are created on your machine when the test runs. They are not in git.
-
-- `reports/allureReport-<date>_<time>/index.html` — one Allure report for each run, named with the date and time the run started. Earlier reports stay, so runs can be compared. Delete old folders when you do not need them.
-- `artifacts/screenshots` — one screenshot per added item, plus the cart
-
-Each report is a single HTML file with everything inside. It opens by double click, with no server, and a run adds a few MB. To open the report of the latest run again:
-
-```bash
-npm run report:open
-```
-
-Two switches for `npm test`, in PowerShell: `$env:REPORT_OPEN = "0"` builds the report without opening it, and `$env:TRACE = "on"` keeps the Playwright traces of failed tests, which makes the report much bigger.
-
-**Example report.** `sample-report/` holds the report of one complete run, so you can see what a report looks like without running anything. Open `sample-report/allureReport-<date>_<time>/index.html`. The folder name is the date and time of that run. In that run the two AliExpress login tests that need the captcha were skipped, because the account was turned off with `ALI_LOGIN=off` (see Login tests). `reports/` itself is not in git.
-
-To replace the example with a new run, in PowerShell:
-
-```powershell
-$env:ALI_LOGIN = "off"
-npm test
-npm run report:sample
-```
-
-`report:sample` copies the report of the latest run into `sample-report/`, and removes the old example.
 
 ## Debug in the editor
 
